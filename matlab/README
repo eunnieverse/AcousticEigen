@@ -1,0 +1,3 @@
+6/15/2015. Note 
+MAT files give correct 1st mode reference
+but not 2nd mode. 2nd mode reference is computed from tabk , tabk * 5/6;
