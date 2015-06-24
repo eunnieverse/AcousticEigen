@@ -19,7 +19,7 @@ prec = '%e'; %% precision
 %% set input directory
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %basedir = pwd(); %% directory containing .m file 
-basedir = '/home/eunnie12/Work/AcousticEigen';
+basedir = '/home/eunnie12/Work/AcousticEigen_Run';
 cd(basedir); 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% set constants
@@ -29,10 +29,14 @@ c0=331.+0.6*(T0-273.); % [m/s]
 L=1e-5;                % [m]
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Load reference data (multiple scattering) 
-load('matlab/MultipleScattering/ms.mat'); %c1,c2,k1,k2,klpi_ms
+load('MultipleScattering/ms.mat'); %c1,c2,k1,k2,klpi_ms
+load('freefem/Local/local.mat'); %cL, kL, klpi_l; 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-cd('freefem/Mode1/');
-dirlist=dir('NewtCyl_Mode1_phi90_err002.txt');     %%for the first .txt file in the folder
+%cd('freefem/Mode1/');
+%dirlist=dir('NewtCyl_Mode1_phi90_err005.txt');     %%for the first .txt file in the folder
+cd('freefem/Mode2/');
+dirlist=dir('NewtCyl_Mode2_phi90_err005_tabk_ms_fmod.txt');     %%for the first .txt file in the folder
+
 filename=dirlist.name;
 fnsplit = strsplit(filename,'.'); %% fn= 1x2 cell, 'abcd_efgh' 'edp' 
 fnext = char(fnsplit(length(fnsplit))); %% 'edp' 
@@ -55,6 +59,9 @@ fid = fopen(filename);
    Rec = data(:,   4);
    Imc = data(:,   5);
    clear data; 
+   
+%k1 = Omega./c1; %%% K1 in .mat file was wrong. 
+%kL = Omega./cL; 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% PLOT
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -68,9 +75,10 @@ if(showplot==1)
 cfig=figure(); %%%Re[k]
     semilogx(klpi,Rek,'ko','LineWidth',2);
     hold on; semilogx(klpi_ms,real(k1),'b',klpi_ms,real(k2),'g--','LineWidth',2); 
+    hold on; semilogx(klpi_ms,real(kL),'r','LineWidth',2); 
     set(gca,'XLim',xlimit1,'XTick',xtick1); xlabel(xlab);
     ylabel('wavevector k [1/m]');
-    h=legend('FEM','mode1','mode2'); set(h,'Location','northeastoutside');
+    h=legend('FEM','nonlocal1','nonlocal2','local'); set(h,'Location','northeastoutside');
     savefigname=strcat('Rek_5_',filebase);
     if(savefig==1); saveas(cfig, strcat(savefigname,extension)); end; 
     if(saveeps==1); saveas(cfig,strcat(savefigname,'.eps'),'epsc'); end; 
@@ -78,9 +86,10 @@ cfig=figure(); %%%Re[k]
 cfig=figure(); %%%Im[k]
     semilogx(klpi,Imk,'ko','LineWidth',2);
     hold on; semilogx(klpi_ms,imag(k1),'b',klpi_ms,imag(k2),'g--','LineWidth',2); 
+    hold on; semilogx(klpi_ms,imag(kL),'r','LineWidth',2); 
     set(gca,'XLim',xlimit1,'XTick',xtick1); xlabel(xlab);
     ylabel('wavevector k [1/m]');
-    h=legend('FEM','mode1','mode2'); set(h,'Location','northeastoutside');
+    h=legend('FEM','nonlocal1','nonlocal2','local'); set(h,'Location','northeastoutside');
     savefigname=strcat('Imk_5_',filebase);
     if(savefig==1); saveas(cfig, strcat(savefigname,extension)); end; 
     if(saveeps==1); saveas(cfig,strcat(savefigname,'.eps'),'epsc'); end; 
@@ -88,9 +97,10 @@ cfig=figure(); %%%Im[k]
 cfig=figure(); %%%Re[k], xlimit2
     semilogx(klpi,Rek,'ko','LineWidth',2);
     hold on; semilogx(klpi_ms,real(k1),'b',klpi_ms,real(k2),'g--','LineWidth',2); 
+    hold on; semilogx(klpi_ms,real(kL),'r','LineWidth',2); 
     set(gca,'XLim',xlimit2,'XTick',xtick2); xlabel(xlab);
     ylabel('wavevector k [1/m]');
-    h=legend('FEM','mode1','mode2'); set(h,'Location','northeastoutside');
+    h=legend('FEM','nonlocal1','nonlocal2','local'); set(h,'Location','northeastoutside');
     savefigname=strcat('Rek_2_',filebase);
     if(savefig==1); saveas(cfig, strcat(savefigname,extension)); end; 
     if(saveeps==1); saveas(cfig,strcat(savefigname,'.eps'),'epsc'); end; 
@@ -98,9 +108,10 @@ cfig=figure(); %%%Re[k], xlimit2
 cfig=figure(); %%%Im[k], xlimit2
     semilogx(klpi,Imk,'ko','LineWidth',2);
     hold on; semilogx(klpi_ms,imag(k1),'b',klpi_ms,imag(k2),'g--','LineWidth',2); 
+    hold on; semilogx(klpi_ms,imag(kL),'r','LineWidth',2); 
     set(gca,'XLim',xlimit2,'XTick',xtick2); xlabel(xlab);
     ylabel('wavevector k [1/m]');
-    h=legend('FEM','mode1','mode2'); set(h,'Location','northeastoutside');
+    h=legend('FEM','nonlocal1','nonlocal2','local'); set(h,'Location','northeastoutside');
     savefigname=strcat('Imk_2_',filebase);
     if(savefig==1); saveas(cfig, strcat(savefigname,extension)); end; 
     if(saveeps==1); saveas(cfig,strcat(savefigname,'.eps'),'epsc'); end; 
@@ -109,10 +120,11 @@ cfig=figure(); %%%Im[k], xlimit2
 cfig = figure();
         semilogx(klpi,Rec,'ko','LineWidth',2);
         hold on; semilogx(klpi_ms,real(c1),'b',klpi_ms,real(c2),'g--','LineWidth',2); 
+        hold on; semilogx(klpi_ms,real(cL),'r','LineWidth',2); 
         set(gca,'XLim',xlimit1,'XTick',xtick1);
         xlabel(xlab);
         ylabel('phase velocity [m/s]');
-        h=legend('FEM','mode1','mode2'); set(h,'Location','northeastoutside');
+    h=legend('FEM','nonlocal1','nonlocal2','local'); set(h,'Location','northeastoutside');
         savefigname=strcat('Rec_5_',filebase);
         if(savefig==1); saveas(cfig, strcat(savefigname,extension)); end; 
         if(saveeps==1); saveas(cfig,strcat(savefigname,'.eps'),'epsc'); end; 
@@ -120,10 +132,11 @@ cfig = figure();
     cfig = figure();
         semilogx(klpi,Imc,'ko','LineWidth',2);
         hold on; semilogx(klpi_ms,imag(c1),'b',klpi_ms,imag(c2),'g--','LineWidth',2); 
+        hold on; semilogx(klpi_ms,imag(cL),'r','LineWidth',2); 
         set(gca,'XLim',xlimit1,'XTick',xtick1);
         xlabel(xlab);
         ylabel('phase velocity [m/s]');
-        h=legend('FEM','mode1','mode2'); set(h,'Location','northeastoutside');
+    h=legend('FEM','nonlocal1','nonlocal2','local'); set(h,'Location','northeastoutside');
         savefigname=strcat('Imc_5_',filebase);
         if(savefig==1); saveas(cfig, strcat(savefigname,extension)); end; 
         if(saveeps==1); saveas(cfig,strcat(savefigname,'.eps'),'epsc'); end; 
@@ -132,10 +145,11 @@ cfig = figure();
 cfig = figure();
         semilogx(klpi,Rec,'ko','LineWidth',2);
         hold on; semilogx(klpi_ms,real(c1),'b',klpi_ms,real(c2),'g--','LineWidth',2); 
+        hold on; semilogx(klpi_ms,real(cL),'r','LineWidth',2); 
         set(gca,'XLim',xlimit2,'XTick',xtick2);
         xlabel(xlab);
         ylabel('phase velocity [m/s]');
-        h=legend('FEM','mode1','mode2'); set(h,'Location','northeastoutside');
+    h=legend('FEM','nonlocal1','nonlocal2','local'); set(h,'Location','northeastoutside');
         savefigname=strcat('Rec_2_',filebase);
         if(savefig==1); saveas(cfig, strcat(savefigname,extension)); end; 
         if(saveeps==1); saveas(cfig,strcat(savefigname,'.eps'),'epsc'); end; 
@@ -143,10 +157,11 @@ cfig = figure();
     cfig = figure();
         semilogx(klpi,Imc,'ko','LineWidth',2);
         hold on; semilogx(klpi_ms,imag(c1),'b',klpi_ms,imag(c2),'g--','LineWidth',2); 
+        hold on; semilogx(klpi_ms,imag(cL),'r','LineWidth',2); 
         set(gca,'XLim',xlimit2,'XTick',xtick2);
         xlabel(xlab);
         ylabel('phase velocity [m/s]');
-        h=legend('FEM','mode1','mode2'); set(h,'Location','northeastoutside');
+    h=legend('FEM','nonlocal1','nonlocal2','local'); set(h,'Location','northeastoutside');
         savefigname=strcat('Imc_2_',filebase);
         if(savefig==1); saveas(cfig, strcat(savefigname,extension)); end; 
         if(saveeps==1); saveas(cfig,strcat(savefigname,'.eps'),'epsc'); end; 
