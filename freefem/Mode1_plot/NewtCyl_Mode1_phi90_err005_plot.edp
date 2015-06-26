@@ -9,11 +9,17 @@
 load "UMFPACK64";
 load "medit";
 real cpu=clock();
-string filebase = "NewtCyl_Mode1_phi90_err005_finalstep";
+bool pl=true;
+bool plmesh=true;
+bool svmesh=true; 
+string filebase = "NewtCyl_Mode1_phi90_err005_plot";
 string logfilename = filebase+".log";
 { ofstream f(logfilename,append);
   f << "Opened Log File..." << endl;
 };
+string savemeshname="";
+string plotmeshname="";
+string saveplotname = ""; 
 //--------------------------------------------------------------------//
 //---Inputs
 real L=1e-5;                    // pitch(m)
@@ -62,6 +68,14 @@ border c1(t=0,2*pi){ x=x1+R*cos(t); y=y1+R*sin(t);label=5;};
 //------------------------------------------------------------
 // CREATE INITIAL MESH
 mesh Th= buildmesh( a1(n)+a2(n)+a3(n)+a4(n)+c1(-1*nedg));
+if(svmesh==true){
+  savemeshname = "Th_" +filebase+ ".msh";
+  savemesh(Th,savemeshname);
+ };
+if(plmesh==true){
+  plotmeshname = "Th_"+filebase+".eps";
+  plot(Th, wait=false, ps=plotmeshname);
+ }
 //------------------------------------------------------------
 int nbpt = 100;  // frequency number of points 
 real klpi,pasklpi,klpimin=0.05,klpimax=5; 
@@ -177,9 +191,12 @@ tabk(95)=1304653.116900+(79031.633403i);    // Vec_kaLpi=4.151088
 tabk(96)=1374359.240500+(75771.159154i);    // Vec_kaLpi=4.348745
 tabk(97)=1434258.316900+(98330.483247i);    // Vec_kaLpi=4.555814
 tabk(98)=1517471.947200+(42055.825335i);    // Vec_kaLpi=4.772742
-tabk(99)=1535140.274900+(99729.366971i);    // Vec_kaLpi=5.000000           
-//for (int ii=79;ii<80;ii++) {
-for (int ii=0; ii<nbpt ; ii++) {
+tabk(99)=1535140.274900+(99729.366971i);    // Vec_kaLpi=5.000000
+int [int] plotindex(20); 
+plotindex=[0,5,10,15,20,25,30,35,40,45,50,55,60,65,70,75,80,85,90,95];
+int ii=0; 
+for (int jj=0;jj<20;jj++) {
+  ii=plotindex(jj); //change index to ii=plotindex(jj) ; 
 //klpi= klpimin+(pasklpi*ii); //linear spacing for x
 klpi = klpimin*10^((ii*(log10(klpimax)-log10(klpimin))/(nbpt-1)));//log spaced x
 
@@ -260,6 +277,15 @@ mesh Thjr=Th; // Creation of the finer mesh Thj
 Thjr=adaptmesh(Thjr,
  [real(vxr),real(vyr),imag(vxr),imag(vyr)],[real(tr),imag(tr)],[real(br),imag(br)]
  ,err=errorr,nbvx=1000000,periodic=[[1,y],[2,y]]);
+if(svmesh==true){
+ savemeshname = "Thjr_"+ii+"_"+filebase+ ".msh";
+ savemesh(Thjr,savemeshname);
+ };
+if(plmesh==true){
+  plotmeshname = "Thjr_"+ii+"_"+filebase+".eps";
+  plot(Thjr, wait=false, ps=plotmeshname);
+ }
+
 // Solve the density system on the finer mesh Thj
 fespace Whjr(Thjr,[P2,P2,P1,P2,P2],periodic=[[1,y],[2,y]]);
 Whjr<complex>  [vxjr,vyjr,pjr,tjr,bjr],[uxjr,uyjr,rjr,sjr,ljr];
@@ -301,6 +327,66 @@ real Vfr=int2d(Thjr)(1.);
 complex Vxr=1./Vfr*int2d(Thjr)(vxjr); // averaged velocity, V   
 complex Hr=int2d(Thjr)(pjr*vxjr)/int2d(Thjr)(vxjr);
 rho=(f0-1i*k*Hr)/(-1i*omega*Vxr); //fluid rho. 
+
+
+//************************************************************//
+//************************************************************//
+// PLOT FOR RHO
+//************************************************************//
+//************************************************************//
+// vector vxjr,vyjr , scalar pjr,tjr,bjr 
+ if(pl==true){
+   real[int] colorhsv=[ 
+                       5./6., 1 , 1,
+                       4./6., 1 , 1,
+                       3./6., 1 , 1,
+                       2./6., 1 , 1,
+                       1./6., 1 , 1,
+                       0./6., 1 , 1,
+                       0./6., 1 , 0.5 ];
+
+   // fespace WhjrPlot is used to plot velocity and related values
+   fespace WhjrPlot(Thjr,P2); 
+   // geometry, velocity, temperature, pressure 
+   WhjrPlot vxjrRe = real(vxjr); WhjrPlot vxjrIm = imag(vxjr); 
+   WhjrPlot vyjrRe = real(vyjr); WhjrPlot vyjrIm = imag(vyjr); 
+   WhjrPlot vxjrMag = abs(vxjr); WhjrPlot vyjrMag = abs(vyjr); 
+   WhjrPlot vjrMag = sqrt(abs(vxjr)*abs(vxjr)+abs(vyjr)*abs(vyjr)); 
+ 
+   WhjrPlot tjrRe= real(tjr); WhjrPlot tjrIm= imag(tjr); WhjrPlot tjrMag= abs(pjr); 
+   WhjrPlot pjrRe= real(pjr); WhjrPlot pjrIm= imag(pjr); WhjrPlot pjrMag= abs(pjr); 
+
+   if(ii==1){
+     WhjrPlot geom=1; //save geometry for ii=1; 
+     saveplotname="geometry_"+filebase+".eps";
+     plot(geom,wait=true, fill=true, bw=true, boundary=false, ps=saveplotname);
+   }
+   saveplotname = "Re_vxjr"+ii+"_"+filebase+".eps";
+   plot(vxjrRe,fill=1,wait=0,hsv=colorhsv,ps=saveplotname);// velocity
+   saveplotname = "Im_vxjr"+ii+"_"+filebase+".eps";
+   plot(vxjrIm,fill=1,wait=0,hsv=colorhsv,ps=saveplotname);// velocity
+   saveplotname = "Re_vyjr"+ii+"_"+filebase+".eps";
+   plot(vyjrRe,fill=1,wait=0,hsv=colorhsv,ps=saveplotname);// velocity
+   saveplotname = "Im_vyjr"+ii+"_"+filebase+".eps";
+   plot(vyjrIm,fill=1,wait=0,hsv=colorhsv,ps=saveplotname);// velocity
+   saveplotname = "Mag_vxjr"+ii+"_"+filebase+".eps";
+   plot(vxjrMag,fill=1,wait=0,hsv=colorhsv,ps=saveplotname);// velocity
+   saveplotname = "Mag_vyjr"+ii+"_"+filebase+".eps";
+   plot(vyjrMag,fill=1,wait=0,hsv=colorhsv,ps=saveplotname);// velocity
+   saveplotname = "Mag_vjr"+ii+"_"+filebase+".eps";
+   plot(vjrMag,fill=1,wait=0,hsv=colorhsv,ps=saveplotname);// velocity
+   saveplotname = "Mag_Tjr"+ii+"_"+filebase+".eps";
+   plot(tjrMag,fill=1,wait=0,hsv=colorhsv,ps=saveplotname);// temperature
+   saveplotname = "Mag_Pjr"+ii+"_"+filebase+".eps";
+   plot(pjrMag,fill=1,wait=0,hsv=colorhsv,ps=saveplotname);// pressure
+   
+   /* fespace Dh(Thjr,P1dc);  */
+   /* Dh<complex> divh=dx(vxjr)+dy(vyjr);  */
+   /* Dh magdiv = abs(divh);  */
+   /* plot(magdiv,wait=true, fill=true, hsv=colorhsv, boundary=false, ps="magdiv.eps");  */
+   // saveplotname = "Re_uxr"+ii+"_"+filebase+".eps";
+   // plot(real(uxr),fill=1,wait=0,hsv=colorhsv,ps=saveplotname);// test function 
+ }//end if plot; 
 
 //************************************************************//
 //************************************************************//
@@ -346,6 +432,14 @@ mesh Thjc=Th;
 Thjc=adaptmesh(Thjc,
  [real(vxc),real(vyc),imag(vxc),imag(vyc)],[real(tc),imag(tc)],[real(bc),imag(bc)]
  ,err=errorc,nbvx=1000000,periodic=[[1,y],[2,y]]);
+if(svmesh==true){
+ savemeshname = "Thjc_"+ii+"_"+filebase+ ".msh";
+ savemesh(Thjc,savemeshname);
+ };
+if(plmesh==true){
+  plotmeshname = "Thjc_"+ii+"_"+filebase+".eps";
+  plot(Thjc, wait=false, ps=plotmeshname);
+ }
 
 // Solve the compressibility system on the finer mesh Thj
 fespace Whjc(Thjc,[P2,P2,P1,P2,P2],periodic=[[1,y],[2,y]]);
@@ -389,6 +483,66 @@ complex B=1./Vfc*int2d(Thjc)(bjc);
 complex Hc=int2d(Thjc)(pjc*vxjc)/int2d(Thjc)(vxjc);
 
 chi=chi0*(1./chi0*B+gamma*phi0)/(phi0+Hc);
+
+
+//************************************************************//
+//************************************************************//
+// PLOT FOR CHI
+//************************************************************//
+//************************************************************//
+// vector vxjc,vyjc, scalar pjc,tjc,bjc
+ if(pl){
+   real[int] colorhsv=[ 
+                       5./6., 1 , 1,
+                       4./6., 1 , 1,
+                       3./6., 1 , 1,
+                       2./6., 1 , 1,
+                       1./6., 1 , 1,
+                       0./6., 1 , 1,
+                       0./6., 1 , 0.5 ];
+
+   // fespace WhjcPlot is used to plot velocity and related values
+   fespace WhjcPlot(Thjc,P2); 
+   // geometry, velocity, temperature, pressure 
+   WhjcPlot vxjcRe = real(vxjc); WhjcPlot vxjcIm = imag(vxjc); 
+   WhjcPlot vyjcRe = real(vyjc); WhjcPlot vyjcIm = imag(vyjc); 
+   WhjcPlot vxjcMag = abs(vxjc); WhjcPlot vyjcMag = abs(vyjc); 
+   WhjcPlot vjcMag = sqrt(abs(vxjc)*abs(vxjc)+abs(vyjc)*abs(vyjc)); 
+ 
+   WhjcPlot tjcRe= real(tjc); WhjcPlot tjcIm= imag(tjc); WhjcPlot tjcMag= abs(pjc); 
+   WhjcPlot pjcRe= real(pjc); WhjcPlot pjcIm= imag(pjc); WhjcPlot pjcMag= abs(pjc); 
+
+   if(ii==1){
+     WhjcPlot geom=1; //save geometry for ii=1; 
+     saveplotname="geometry_"+filebase+".eps";
+     plot(geom,wait=true, fill=true, bw=true, boundary=false, ps=saveplotname);
+   }
+   saveplotname = "Re_vxjc"+ii+"_"+filebase+".eps";
+   plot(vxjcRe,fill=1,wait=0,hsv=colorhsv,ps=saveplotname);// velocity
+   saveplotname = "Im_vxjc"+ii+"_"+filebase+".eps";
+   plot(vxjcIm,fill=1,wait=0,hsv=colorhsv,ps=saveplotname);// velocity
+   saveplotname = "Re_vyjc"+ii+"_"+filebase+".eps";
+   plot(vyjcRe,fill=1,wait=0,hsv=colorhsv,ps=saveplotname);// velocity
+   saveplotname = "Im_vyjc"+ii+"_"+filebase+".eps";
+   plot(vyjcIm,fill=1,wait=0,hsv=colorhsv,ps=saveplotname);// velocity
+   saveplotname = "Mag_vxjc"+ii+"_"+filebase+".eps";
+   plot(vxjcMag,fill=1,wait=0,hsv=colorhsv,ps=saveplotname);// velocity
+   saveplotname = "Mag_vyjc"+ii+"_"+filebase+".eps";
+   plot(vyjcMag,fill=1,wait=0,hsv=colorhsv,ps=saveplotname);// velocity
+   saveplotname = "Mag_vjc"+ii+"_"+filebase+".eps";
+   plot(vjcMag,fill=1,wait=0,hsv=colorhsv,ps=saveplotname);// velocity
+   saveplotname = "Mag_Tjc"+ii+"_"+filebase+".eps";
+   plot(tjcMag,fill=1,wait=0,hsv=colorhsv,ps=saveplotname);// temperature
+   saveplotname = "Mag_Pjc"+ii+"_"+filebase+".eps";
+   plot(pjcMag,fill=1,wait=0,hsv=colorhsv,ps=saveplotname);// pressure
+   
+   /* fespace Dh(Thjc,P1dc);  */
+   /* Dh<complex> divh=dx(vxjc)+dy(vyjc);  */
+   /* Dh magdiv = abs(divh);  */
+   /* plot(magdiv,wait=true, fill=true, hsv=colorhsv, boundary=false, ps="magdiv.eps");  */
+   // saveplotname = "Re_uxr"+ii+"_"+filebase+".eps";
+   // plot(real(uxr),fill=1,wait=0,hsv=colorhsv,ps=saveplotname);// test function 
+ }//end if plot; 
 
 //************************************************************//
 //************************************************************//
@@ -439,6 +593,14 @@ mesh Thjr1=Th;
 Thjr1=adaptmesh(Thjr1,
  [real(vxr1),real(vyr1),imag(vxr1),imag(vyr1)],[real(tr1),imag(tr1)],[real(br1),imag(br1)]
  ,err=errorc,nbvx=1000000,periodic=[[1,y],[2,y]]);
+if(svmesh==true){
+ savemeshname = "Thjr1_"+ii+"_"+filebase+ ".msh";
+ savemesh(Thjr1,savemeshname);
+ };
+if(plmesh==true){
+  plotmeshname = "Thjr1_"+ii+"_"+filebase+".eps";
+  plot(Thjr1, wait=false, ps=plotmeshname);
+ }
 
 fespace Whjr1(Thjr1,[P2,P2,P1,P2,P2],periodic=[[1,y],[2,y]]);
 Whjr1<complex>  [vxjr1,vyjr1,pjr1,tjr1,bjr1],[uxjr1,uyjr1,rjr1,sjr1,ljr1];
@@ -522,6 +684,14 @@ mesh Thjc1=Th;
 Thjc1=adaptmesh(Thjc1,
  [real(vxc1),real(vyc1),imag(vxc1),imag(vyc1)],[real(tc1),imag(tc1)],[real(bc1),imag(bc1)]
  ,err=errorc,nbvx=1000000,periodic=[[1,y],[2,y]]);
+if(svmesh==true){
+ savemeshname = "Thjc1_"+ii+"_"+filebase+ ".msh";
+ savemesh(Thjc1,savemeshname);
+ };
+if(plmesh==true){
+  plotmeshname = "Thjc1_"+ii+"_"+filebase+".eps";
+  plot(Thjc1, wait=false, ps=plotmeshname);
+ }
 fespace Whjc1(Thjc1,[P2,P2,P1,P2,P2],periodic=[[1,y],[2,y]]);
 Whjc1<complex>  [vxjc1,vyjc1,pjc1,tjc1,bjc1],[uxjc1,uyjc1,rjc1,sjc1,ljc1];
 
@@ -601,27 +771,6 @@ k=kout;
 
 // iteration=iteration+1; //not used for final run
 //  } //end while //not used for final run 
-
- string foutname=filebase+"_F.txt";
- string kcoutname=filebase+"_kc.txt";
- string rhochioutname=filebase+"_rhochi.txt";
-
- { ofstream fout(foutname,append);
-   fout << "F_w2= omega^2-k^2./rho/chi;" << endl; 
-   fout << "F_rhochiw2 = rho*chi*omega^2-k^2" << endl; 
-   fout << "klpi   re(F_w2)    im(F_w2)    re(F_rhochiw2)    im(F_rhochiw2)" << endl;
-   fout << klpi << real(Fw2) << "   " << imag(Fw2) << "   " << real(Frhochiw2) << "   " << imag(Frhochiw2) << endl; 
- };
-
- { ofstream kc(kcoutname,append);
-   kc << "klpi   re(k)   im(k)   re(c)   im(c)" << endl; 
-   kc << klpi << "   "<< real(k) << "   "<< imag(k) <<"   ";
-   kc << real(omega/k) << "   " << imag(omega/k) << endl;
- };
- { ofstream rhochi(rhochioutname,append);
-   rhochi << "klpi   re(rho)   im(rho)   re(chi)   im(chi)" << endl; 
-   rhochi << klpi  << "   " << real(rho) << "   " << imag(rho) << "   " << real(chi) << "   " << imag(chi) << "   " << endl ;
- };
 
 }//end for 
 
