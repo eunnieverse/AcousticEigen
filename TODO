@@ -1,7 +1,6 @@
 TODO file 
 created on 2015.06.23
+
 mesh load *.msh without adaptmesh every time 
-
-check with Navid the k plots (they look strange) 
-
-process fmod files in Mode2
+plot results from finalstep.edp 
+plot effective lambda 
