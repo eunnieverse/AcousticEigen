@@ -31,7 +31,7 @@ L=1e-5;                % [m]
 load('Navid_Phi90_DATA_PTS1000.mat');
 data=dlmread('tabk_InitialGuess.txt'); 
 tabk2=data(:,2)+i.*data(:,3);
-tabk2_to_ms1=tabk2*5/6; 
+tabk2_to_ms1=tabk2*5/6; %% this was correct 
 tabk2_to_ms2=tabk2*5/4; 
 
 klpi_100 = data(:,1); 

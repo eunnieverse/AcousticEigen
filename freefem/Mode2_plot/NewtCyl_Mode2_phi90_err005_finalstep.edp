@@ -681,19 +681,19 @@ k=kout;
  string rhochioutname=filebase+"_rhochi.txt";
 
  { ofstream fout(foutname,append);
-   fout << "F_w2= omega^2-k^2./rho/chi;" << endl; 
-   fout << "F_rhochiw2 = rho*chi*omega^2-k^2" << endl; 
-   fout << "klpi   re(F_w2)    im(F_w2)    re(F_rhochiw2)    im(F_rhochiw2)" << endl;
+   /* fout << "F_w2= omega^2-k^2./rho/chi;" << endl;  */
+   /* fout << "F_rhochiw2 = rho*chi*omega^2-k^2" << endl;  */
+   /* fout << "klpi   re(F_w2)    im(F_w2)    re(F_rhochiw2)    im(F_rhochiw2)" << endl; */
    fout << klpi << real(Fw2) << "   " << imag(Fw2) << "   " << real(Frhochiw2) << "   " << imag(Frhochiw2) << endl; 
  };
 
  { ofstream kc(kcoutname,append);
-   kc << "klpi   re(k)   im(k)   re(c)   im(c)" << endl; 
+   /* kc << "klpi   re(k)   im(k)   re(c)   im(c)" << endl;  */
    kc << klpi << "   "<< real(k) << "   "<< imag(k) <<"   ";
    kc << real(omega/k) << "   " << imag(omega/k) << endl;
  };
  { ofstream rhochi(rhochioutname,append);
-   rhochi << "klpi   re(rho)   im(rho)   re(chi)   im(chi)" << endl; 
+   /* rhochi << "klpi   re(rho)   im(rho)   re(chi)   im(chi)" << endl;  */
    rhochi << klpi  << "   " << real(rho) << "   " << imag(rho) << "   " << real(chi) << "   " << imag(chi) << "   " << endl ;
  };
 

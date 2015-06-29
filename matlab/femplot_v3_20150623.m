@@ -30,12 +30,12 @@ L=1e-5;                % [m]
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Load reference data (multiple scattering) 
 load('MultipleScattering/ms.mat'); %c1,c2,k1,k2,klpi_ms
-load('freefem/Local/local.mat'); %cL, kL, klpi_l; 
+load('freefem/Local_correct/local.mat'); %cL, kL, klpi_l; 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %cd('freefem/Mode1/');
 %dirlist=dir('NewtCyl_Mode1_phi90_err005.txt');     %%for the first .txt file in the folder
-cd('freefem/Mode2/');
-dirlist=dir('NewtCyl_Mode2_phi90_err005_tabk_ms_fmod.txt');     %%for the first .txt file in the folder
+cd('freefem/Mode1/');
+dirlist=dir('NewtCyl_Mode1_phi90_err002.txt');     %%for the first .txt file in the folder
 
 filename=dirlist.name;
 fnsplit = strsplit(filename,'.'); %% fn= 1x2 cell, 'abcd_efgh' 'edp' 
