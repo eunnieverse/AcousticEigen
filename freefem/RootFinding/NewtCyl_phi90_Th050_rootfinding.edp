@@ -1,10 +1,10 @@
 //--------------------------------------------------------------------//
-// Newton Iteration on an array of rigid cylinders in 2D 
-// Compute the complex wavenumber k and phase velocity c
+// An array of rigid cylinders in 2D 
+// Contour Integration Based Root Finding 
 // 2nd Mode 
 // Created by Navid Nemati
 // Modified by Anshuman Kumar
-// Modified by Yoonkyung Eunnie Lee 2015-08-11
+// Modified by Yoonkyung Eunnie Lee 2015-08-13
 //--------------------------------------------------------------------//
 // load "medit";
 load "UMFPACK64";
@@ -12,7 +12,7 @@ load "UMFPACK64";
 //------------------------------------------------------------
 //- Set output filebase 
 //------------------------------------------------------------
-string filebase = "NewtCyl_phi90_rootfinding";
+string filebase = "NewtCyl_phi90_Th050_rootfinding";
 string logfilename = filebase+".log";
 { ofstream f(logfilename,append);
   f << "Opened Log File..." << endl;
@@ -25,7 +25,7 @@ include "NewtCyl_phi90_geometry.idp"; // geometry input file
   //------------------------------------------------------------
   //- Fine Mesh Load       -------------------------------------
   //------------------------------------------------------------
-  mesh Thj=readmesh("NewtCyl_phi90_Th100.msh");
+  mesh Thj=readmesh("NewtCyl_phi90_Th050.msh");
 
 //------------------------------------------------------------
 //- Set Timer and Begin Loop 
