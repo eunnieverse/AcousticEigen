@@ -16,10 +16,10 @@ int logging=1; //save log if logging==1;
 //------------------------------------------------------------
 //- Set output filebase 
 //------------------------------------------------------------
-string filebase = "NewtCyl_phi90_Th050_rootfinding";
+string filebase = "NewtCyl_phi90_Th100_rootfinding";
 string soutname = ""; 
 string logfilename = filebase+".log";
-mesh Thj=readmesh("NewtCyl_phi90_Th050.msh");
+mesh Thj=readmesh("NewtCyl_phi90_Th100.msh");
 
 if(logging==1){ 
   ofstream f(logfilename,append);

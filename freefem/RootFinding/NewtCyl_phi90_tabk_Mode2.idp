@@ -4,12 +4,8 @@
 // Created  by Yoonkyung Eunnie Lee 2015-08-13
 // Modified by Yoonkyung Eunnie Lee 2015-08-13
 //------------------------------------------------------------
-
-//tabk is the result in NewtCyl_Mode2_phi90_err*.txt
+//tabk is the result in NewtCyl_Mode2_phi90_err005_final_k.txt
 //initial k for 100 points from klp=0.05 to 5
-
-complex[int] tabk(nbpt); //k tabulated (initial guess)
-
 tabk(0)=491171.319040+(848929.089080i);    // Vec_kaLpi=0.050000
 tabk(1)=-124769.707440+(1320784.887400i);    // Vec_kaLpi=0.052381
 tabk(2)=-380716.596480+(851751.609630i);    // Vec_kaLpi=0.054875
