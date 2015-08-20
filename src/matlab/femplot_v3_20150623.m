@@ -35,7 +35,7 @@ load('freefem/Local_correct/local.mat'); %cL, kL, klpi_l;
 %cd('freefem/Mode1/');
 %dirlist=dir('NewtCyl_Mode1_phi90_err005.txt');     %%for the first .txt file in the folder
 cd('freefem/Mode1/');
-dirlist=dir('NewtCyl_Mode1_phi90_err002.txt');     %%for the first .txt file in the folder
+dirlist=dir('NewtCyl_Mode1_phi90_err005.txt');     %%for the first .txt file in the folder
 
 filename=dirlist.name;
 fnsplit = strsplit(filename,'.'); %% fn= 1x2 cell, 'abcd_efgh' 'edp' 
