@@ -1,0 +1,134 @@
+//--------------------------------------------------------------------//
+// An array of rigid cylinders in 2D 
+// Contour Integration Based Root Finding 
+// Mesh Accuracy Check 
+// Yoonkyung Eunnie Lee 2015-08-20
+//--------------------------------------------------------------------//
+verbosity=0; 
+/*---------
+  Agenda: 
+  Create geometry
+  Pick 5 representative frequencies on and off resonance for 1st mode
+  Pick 3 sample points
+  Loop mesh fineness n from 25:25:500, solve nonlocaldensity, output velocity
+  ---------*/
+string foutname;
+//------------------------------------------------------------
+//- Load pre-set geometry & physical parameters
+//------------------------------------------------------------
+include "NewtCyl_phi90_geometry.idp"; // geometry input file 
+
+real x1S, y1S, x2S, y2S, x3S, y3S;    // 3 sample points 
+x1S = 0.;       y1S = yMax;           // middle of border a4
+x2S = -R;       y2S = 0.;             // on cylinder front
+x3S = -R*1.2;   y3S = 0.;             // near cylinder front
+
+real v1S, v2S, v3S;                   // output at sample data pt. 
+
+//------------------------------------------------------------
+//- Load tabk 
+//------------------------------------------------------------
+complex k; 			// complex wavenumber, [rad/m]
+int  nbpt = 100;                // frequency number of points
+real klpi;                      // klpi: dimensionless frequency [kL/pi]
+real klpimin = 0.05;
+real klpimax = 5.00;
+
+real[int] klpiList(5);       // klpi list (sample pts) 
+klpiList(0)=0.126768;           // klpi index 20 
+klpiList(1)=0.814875;           // klpi index 60 
+klpiList(2)=1.028256;           // klpi index 65 
+klpiList(3)=1.297512;           // klpi index 70 
+klpiList(4)=2.066006;           // klpi index 80 
+
+real[int] L2error(2);
+
+
+real freq;
+real omega;
+complex q0; 
+complex f0; //size of forcing term. 
+
+// varilables used to obtain rho 
+real phir;
+real Vfr;
+complex Vxr; 
+complex Hr; 
+//------------------------------------------------------------
+//- TEST MESH ACCURACY IN A LOOP -----------------------------
+//------------------------------------------------------------
+for(int ii=0;ii<5;ii++){
+
+  klpi=klpiList(ii); 
+  freq= (c0*klpi)/(2*Lx);
+  omega=2*pi*freq;
+  q0=-1i*omega*phi0;
+  f0=-1i*1e5;// forcing amplitude (-i k Phi0)
+  
+  
+  foutname="mesh_error"+ii+".txt";
+   { ofstream fout(foutname,append);
+      // Header  
+     fout << "Mesh Error test " << endl ;
+     fout << "klpi= " << klpiList(ii) << endl ;
+    };
+   
+    for (int n=25;n<501;n+=25){ //loop through n
+    nedg = 2*n; 
+    Th = buildmesh( a1(n)+a2(n)+a3(n)+a4(n)+c1(-1*nedg));
+    
+    fespace Whr(Th,[P2,P2,P1,P2,P2],periodic=[[1,y],[2,y]]);
+    Whr<complex>  [vxr,vyr,pr,tr,br],[uxr,uyr,rr,sr,lr];// variables & test functions
+    /* ------------------------------------------------------------ */
+    /* Density problem */
+    /* dx(f): df/dx */
+    /* int2d(Th)(f): 2d integral */
+    /* on(1,2,3,4,vyr=0): BC */
+    /* ------------------------------------------------------------ */
+    // CONTINUITY EQN IN WEAK FORM (EQ. III)
+    problem nonlocalDensity([vxr,vyr,pr,tr,br],[uxr,uyr,rr,sr,lr]) =
+      int2d(Th)( 1i*omega*br*lr-dx(vxr)*lr-dy(vyr)*lr-1i*k*vxr*lr )+
+      int2d(Th)(
+                - 1i*omega*rho0*vxr*uxr-1i*omega*rho0*vyr*uyr
+                - pr*(dx(uxr)+dy(uyr))
+                + 1i*k*pr*uxr
+                + (zeta+1./3*eta)*((dx(vxr)+dy(vyr))*(dx(uxr)+dy(uyr)))
+                - 1i*(zeta+1./3*eta)*k*uxr*(dx(vxr)+dy(vyr))
+                + 1i*(zeta+1./3*eta)*k*vxr*(dx(uxr)+dy(uyr))
+                + eta*(dx(vxr)*dx(uxr)+dy(vxr)*dy(uxr)+dx(vyr)*dx(uyr)+dy(vyr)*dy(uyr))
+                + 2*1i*eta*k*(vxr*dx(uxr)+vyr*dx(uyr))
+                + eta*(k^2)*(vxr*uxr+vyr*uyr)
+                + (zeta+1./3.*eta)*(k^2)*vxr*uxr
+                )
+      - int2d(Th)(f0*uxr)
+      + int2d(Th)(
+                  - 1i*omega*rho0*cp*tr*sr
+                  + 1i*omega*beta0*T0*pr*sr
+                  + kappa*(dx(tr)*dx(sr)+dy(tr)*dy(sr))
+                  + 2*1i*kappa*k*tr*dx(sr)
+                  + (k^2)*kappa*tr*sr
+                  )
+      + int2d(Th)(gamma*chi0*pr*rr-br*rr-beta0*tr*rr)
+      +on(1,2,3,4,vyr=0)
+      +on(5,vxr=0,vyr=0,tr=0);
+    //------------------------------------------------------------
+    nonlocalDensity;	//solve: get vx,vy,pr,tr,vr at every meshpoint, corresponding to omega, k
+ 
+    phir=int2d(Th)(1.)/(Vtot); //porosity from discretized area
+    Vfr=int2d(Th)(1.);
+    Vxr=1./Vfr*int2d(Th)(vxr); // averaged velocity, V
+    Hr=int2d(Th)(pr*vxr)/int2d(Th)(vxr);
+    rho=(f0-1i*k*Hr)/(-1i*omega*Vxr); //fluid rho.
+   
+    v1S = sqrt(abs(vxr(x1S, y1S))*abs(vxr(x1S, y1S))+abs(vyr(x1S, y1S))*abs(vyr(x1S, y1S)));
+    v2S = sqrt(abs(vxr(x2S, y2S))*abs(vxr(x2S, y2S))+abs(vyr(x2S, y2S))*abs(vyr(x2S, y2S)));
+    v3S = sqrt(abs(vxr(x3S, y3S))*abs(vxr(x3S, y3S))+abs(vyr(x3S, y3S))*abs(vyr(x3S, y3S)));
+    
+    { ofstream fout(foutname,append);
+      // n   num_elements   |v|(sample1)  |v|(sample2)  |v|(sample3)  
+      fout << n  << "   " << v1S  << "   " << v2S << "   " << v3S <<  endl ;
+    };
+    
+  }//for n
+  
+ }//for ii
