@@ -1,0 +1,39 @@
+* Note: klpi = k/(pi*L) = dimensionless frequency
+Mode1: 
+----------------------------------------------------
+  initial guess is original tabk, given by Navid 
+    (tabk: said to be 20% displaced from multiple scattering data, mode1)
+    NewtCyl_Mode1_phi90_err002.edp  
+    NewtCyl_Mode1_phi90_err005.edp
+  result: converges to mode1 up to klpi=2. 
+          error 0.002 vs. 0.005: no difference 
+----------------------------------------------------  
+Mode2:
+----------------------------------------------------
+  initial guess is original tabk, given by Navid 
+    (tabk: said to be 20% displaced from multiple scattering data, mode2)
+    NewtCyl_Mode2_phi90_err002.edp
+    NewtCyl_Mode2_phi90_err005.edp
+  result: converges to mode2 up to klpi<0.5
+          converges to mode1 afterwards, up to klpi(70)=1.24
+          entirely fails after klpi>1.24 
+          error 0.002 vs. 0.005: no difference 
+----------------------------------------------------
+  initial guess is tabk2*5/6 
+  (tabk_to_ms: assumed to be multiple scattering data, but I see some discrepancies especially in klpi>2.) 
+  function f = w^2-k^2/rho/chi
+  NewtCyl_Mode2_phi90_err002_tabk_ms.edp
+  NewtCyl_Mode2_phi90_err005_tabk_ms.edp
+  result: converges to mode1 before klpi<0.1
+          converges to mode2 for 0.1<klpi<2  (good)
+          converges to some value after klpi>2, but multiple scattering data is wrong so didn't check.  
+          error 0.002 vs. 0.005: no difference 
+----------------------------------------------------
+  initial guess is tabk2*5/6
+  function f = rho*chi*w^2-k^2
+  NewtCyl_Mode2_phi90_err002_tabk_ms_fmod.edp
+  NewtCyl_Mode2_phi90_err005_tabk_ms_fmod.edp
+  result: converges to mode1 before klpi<0.1
+          entirely fails afterwards
+          error 0.002 vs. 0.005: no difference 
+----------------------------------------------------

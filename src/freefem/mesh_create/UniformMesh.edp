@@ -1,0 +1,51 @@
+//------------------------------------------------------------
+// FreeFem Mesh Generation for NewtCyl: array of rigid cylinders in 2D 
+// Created  by Yoonkyung Eunnie Lee 2015-08-12
+// Modified by Yoonkyung Eunnie Lee 2015-08-13
+//------------------------------------------------------------
+load "medit";
+string filebase = "NewtCyl_phi90";
+string Thfilename = filebase+"_Th.msh";
+string Thjfilename= filebase+"_Thj.msh";
+//------------------------------------------------------------
+//---Inputs --------------------------------------------------
+//------------------------------------------------------------
+real L=1e-5;                    // pitch(m)
+real phi00=0.9;                 // liquid volume fraction
+real R=sqrt((1.-phi00)/pi)*L;   //(m)
+//------------------------------------------------------------
+//---Coarse Mesh properties ----------------------------------
+//------------------------------------------------------------
+int n=20, nedg=40; 		// number of mesh points on boundary
+				// n on bloch(unit cell)
+ 				// nedg on cylinder
+
+real x00=0., y00=0.;		// origin
+real xMin=-L/2., xMax=L/2., yMin=-L/2., yMax=L/2.;  
+real Lx=xMax-xMin, Ly=yMax-yMin; 
+real Vtot=Lx*Ly;
+//------------------------------------------------------------
+// build geometry --------------------------------------------
+//------------------------------------------------------------
+border a1(t=yMax,yMin){x=xMin;y=t;label=1;};// input
+border a2(t=xMin,xMax){x=t;y=yMin;label=3;};
+border a3(t=yMin,yMax){x=xMax;y=t;label=2;};// output
+border a4(t=xMax,xMin){x=t;y=yMax;label=4;};
+border c1(t=0,2*pi){ x=x00+R*cos(t); y=y00+R*sin(t);label=5;};
+//------------------------------------------------------------
+//- CREATE INITIAL COARSE MESH -------------------------------
+//------------------------------------------------------------
+mesh Th= buildmesh( a1(n)+a2(n)+a3(n)+a4(n)+c1(-1*nedg));
+plot(Th,wait=1,ps=filebase+"_Th020.eps"); 
+savemesh(Th,filebase+"_Th020.msh"); 
+//------------------------------------------------------------
+//- Fine Mesh Generation -------------------------------------
+//------------------------------------------------------------
+n=200;
+nedg=400; 		// number of mesh points on boundary
+				// n on bloch(unit cell)
+ 				// nedg on cylinder
+mesh Th200= buildmesh( a1(n)+a2(n)+a3(n)+a4(n)+c1(-1*nedg));
+plot(Th200,wait=1,ps=filebase+"_Th200.eps"); 
+savemesh(Th200,filebase+"_Th200.msh"); 
+//------------------------------------------------------------

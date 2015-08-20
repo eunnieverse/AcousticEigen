@@ -1,0 +1,782 @@
+//--------------------------------------------------------------------//
+// Newton Iteration on an array of rigid cylinders in 2D 
+// Compute the complex wavenumber k and phase velocity c
+// 1st Mode 
+// Created by Navid Nemati
+// Modified by Anshuman Kumar
+// Modified by Yoonkyung Eunnie Lee 2015-06-24
+//--------------------------------------------------------------------//
+load "UMFPACK64";
+load "medit";
+real cpu=clock();
+bool pl=true;
+bool plmesh=true;
+bool svmesh=true; 
+string filebase = "NewtCyl_Mode1_phi90_err005_plot";
+string logfilename = filebase+".log";
+{ ofstream f(logfilename,append);
+  f << "Opened Log File..." << endl;
+};
+string savemeshname="";
+string plotmeshname="";
+string saveplotname = ""; 
+//--------------------------------------------------------------------//
+//---Inputs
+real L=1e-5;                    // pitch(m)
+real phi00=0.9;                 // liquid volume fraction
+real R=sqrt((1.-phi00)/pi)*L;   //(m)
+
+real T0=293.; 			// Temperature [K]
+real c0=331.+0.6*(T0-273.); 	// speed of sound at T0[m/s]
+real rho00=1.2;	 		// air density [kg/m^3]	
+real K0=rho00*c0^2;		// Bulk modulus = 1/chi0 [pressure unit N/m^2]
+real nuh=2.15e-5;		// kappa/(rho0*Cp), [kappa:thermal conductivity, W/mK]
+real nuv=1.5e-5;		// kinematic viscosity_v (not used) [m^2/s]
+real Pr=0.697674418604651;	// Prandtle #
+real Cp=1005.;			// Heat Capacity [Joule/kg K]
+real Beta0=1./T0;		// Coeff. of thermal expansion [1/K]  
+real gam=1.4;			// Cp/Cv 
+
+//---air properties
+real eta=nuv*rho00, rho0=rho00, cp=1005., kappa=nuh*rho00*Cp, gamma=1.4, chi0=1./K0; 
+				//chi0: compressibility. 
+real zeta=0.6*eta; 		// second(bulk) viscosity 
+real phi0=1.; 			//Phi_0, pressure potential [N/m^2]
+complex k; 			//complex wavenumber, [rad/m]
+
+real beta0=sqrt(rho0*cp*chi0*(gamma-1)/T0); //=Beta0
+
+complex rho = -1.0; 
+complex chi = -1.0; 
+//--------------------------------------------------------------------//
+//---Coarse Mesh properties 
+int n=20, nedg=40; 		// number of mesh points on boundary
+				// n on bloch(unit cell)
+ 				// nedg on cylinder
+
+real x1=0., y1=0.;		// origin
+real xMin=-L/2., xMax=L/2., yMin=-L/2., yMax=L/2.;  
+real Lx=xMax-xMin, Ly=yMax-yMin; 
+real Vtot=Lx*Ly;
+//------------------------------------------------------------
+// build geometry
+border a1(t=yMax,yMin){x=xMin;y=t;label=1;};// input
+border a2(t=xMin,xMax){x=t;y=yMin;label=3;};
+border a3(t=yMin,yMax){x=xMax;y=t;label=2;};// output
+border a4(t=xMax,xMin){x=t;y=yMax;label=4;};
+border c1(t=0,2*pi){ x=x1+R*cos(t); y=y1+R*sin(t);label=5;};
+//------------------------------------------------------------
+// CREATE INITIAL MESH
+mesh Th= buildmesh( a1(n)+a2(n)+a3(n)+a4(n)+c1(-1*nedg));
+if(svmesh==true){
+  savemeshname = "Th_" +filebase+ ".msh";
+  savemesh(Th,savemeshname);
+ };
+if(plmesh==true){
+  plotmeshname = "Th_"+filebase+".eps";
+  plot(Th, wait=false, ps=plotmeshname);
+ }
+//------------------------------------------------------------
+int nbpt = 100;  // frequency number of points 
+real klpi,pasklpi,klpimin=0.05,klpimax=5; 
+// klpi: xaxis, kL/pi
+// pasklpi: unit step in x
+// pasklpi= (klpimax-klpimin)/(nbpt); 
+pasklpi= (klpimax-klpimin)/(nbpt-1);//corrected:Eunnie
+
+//real freq,pasfreq,fmin =3.4000000000e+01 ,fmax =8575 ;
+//pasf = (fmax-fmin)/(nbpt);
+real freq; 	//  [1/s]
+real omega;	//  [rad/s]
+
+complex[int] tabk(nbpt); //k tabulated (initial guess) 
+
+//initial k for 100 points from klp=0.05 to 5
+tabk(0)=18991.817240+(5758.358556i);    // Vec_kaLpi=0.050000
+tabk(1)=19825.203637+(5801.483482i);    // Vec_kaLpi=0.052381
+tabk(2)=20699.290668+(5845.658469i);    // Vec_kaLpi=0.054875
+tabk(3)=21615.897793+(5891.074868i);    // Vec_kaLpi=0.057488
+tabk(4)=22576.910158+(5937.900663i);    // Vec_kaLpi=0.060225
+tabk(5)=23584.303103+(5986.311465i);    // Vec_kaLpi=0.063093
+tabk(6)=24640.133444+(6036.482679i);    // Vec_kaLpi=0.066097
+tabk(7)=25746.541193+(6088.562335i);    // Vec_kaLpi=0.069244
+tabk(8)=26905.776473+(6142.721378i);    // Vec_kaLpi=0.072541
+tabk(9)=28120.194506+(6199.128095i);    // Vec_kaLpi=0.075996
+tabk(10)=29392.241408+(6257.914033i);    // Vec_kaLpi=0.079614
+tabk(11)=30724.489655+(6319.229980i);    // Vec_kaLpi=0.083405
+tabk(12)=32119.640784+(6383.231513i);    // Vec_kaLpi=0.087376
+tabk(13)=33580.518988+(6450.053676i);    // Vec_kaLpi=0.091537
+tabk(14)=35110.105811+(6519.867176i);    // Vec_kaLpi=0.095896
+tabk(15)=36711.468838+(6592.761443i);    // Vec_kaLpi=0.100462
+tabk(16)=38387.903201+(6668.916995i);    // Vec_kaLpi=0.105245
+tabk(17)=40142.784766+(6748.428623i);    // Vec_kaLpi=0.110257
+tabk(18)=41979.733006+(6831.475219i);    // Vec_kaLpi=0.115506
+tabk(19)=43902.465608+(6918.154403i);    // Vec_kaLpi=0.121006
+tabk(20)=45914.967629+(7008.650775i);    // Vec_kaLpi=0.126768
+tabk(21)=48021.333165+(7103.057176i);    // Vec_kaLpi=0.132804
+tabk(22)=50225.929364+(7201.551811i);    // Vec_kaLpi=0.139128
+tabk(23)=52533.295838+(7304.265549i);    // Vec_kaLpi=0.145753
+tabk(24)=54948.181409+(7411.323048i);    // Vec_kaLpi=0.152693
+tabk(25)=57475.689651+(7522.944658i);    // Vec_kaLpi=0.159963
+tabk(26)=60120.952563+(7639.161205i);    // Vec_kaLpi=0.167580
+tabk(27)=62889.632652+(7760.249200i);    // Vec_kaLpi=0.175560
+tabk(28)=65787.495277+(7886.312522i);    // Vec_kaLpi=0.183919
+tabk(29)=68820.650601+(8017.533487i);    // Vec_kaLpi=0.192676
+tabk(30)=71995.561742+(8154.096702i);    // Vec_kaLpi=0.201851
+tabk(31)=75319.017997+(8296.214914i);    // Vec_kaLpi=0.211462
+tabk(32)=78798.100689+(8444.046939i);    // Vec_kaLpi=0.221531
+tabk(33)=82440.371856+(8597.847766i);    // Vec_kaLpi=0.232079
+tabk(34)=86253.856052+(8757.941366i);    // Vec_kaLpi=0.243130
+tabk(35)=90246.776311+(8924.534471i);    // Vec_kaLpi=0.254707
+tabk(36)=94428.145343+(9098.081382i);    // Vec_kaLpi=0.266835
+tabk(37)=98807.168784+(9278.926720i);    // Vec_kaLpi=0.279541
+tabk(38)=103393.871290+(9467.623701i);    // Vec_kaLpi=0.292851
+tabk(39)=108198.737950+(9664.772569i);    // Vec_kaLpi=0.306795
+tabk(40)=113232.887460+(9871.059636i);    // Vec_kaLpi=0.321404
+tabk(41)=118508.138280+(10087.372081i);    // Vec_kaLpi=0.336708
+tabk(42)=124037.086120+(10314.738318i);    // Vec_kaLpi=0.352740
+tabk(43)=129833.203810+(10554.485432i);    // Vec_kaLpi=0.369536
+tabk(44)=135910.919010+(10808.198783i);    // Vec_kaLpi=0.387132
+tabk(45)=142285.778790+(11077.876888i);    // Vec_kaLpi=0.405565
+tabk(46)=148974.554410+(11366.014909i);    // Vec_kaLpi=0.424877
+tabk(47)=155995.646010+(11675.879077i);    // Vec_kaLpi=0.445108
+tabk(48)=163369.025490+(12011.544069i);    // Vec_kaLpi=0.466302
+tabk(49)=171117.281650+(12378.654936i);    // Vec_kaLpi=0.488505
+tabk(50)=179265.435290+(12784.597351i);    // Vec_kaLpi=0.511766
+tabk(51)=187842.684720+(13239.939029i);    // Vec_kaLpi=0.536134
+tabk(52)=196883.004230+(13759.807044i);    // Vec_kaLpi=0.561662
+tabk(53)=206427.375560+(14366.918642i);    // Vec_kaLpi=0.588406
+tabk(54)=216526.816020+(15097.195634i);    // Vec_kaLpi=0.616423
+tabk(55)=227246.583510+(16010.907271i);    // Vec_kaLpi=0.645775
+tabk(56)=238671.456840+(17216.812393i);    // Vec_kaLpi=0.676524
+tabk(57)=250904.368050+(18929.506180i);    // Vec_kaLpi=0.708737
+tabk(58)=264007.863430+(21611.044735i);    // Vec_kaLpi=0.742484
+tabk(59)=277603.647280+(26222.902549i);    // Vec_kaLpi=0.777838
+tabk(60)=289581.440400+(33484.854322i);    // Vec_kaLpi=0.814875
+tabk(61)=297635.680330+(40874.418785i);    // Vec_kaLpi=0.853676
+tabk(62)=302984.967730+(45477.240421i);    // Vec_kaLpi=0.894325
+tabk(63)=307378.302460+(46303.515653i);    // Vec_kaLpi=0.936909
+tabk(64)=312032.305670+(43012.605362i);    // Vec_kaLpi=0.981520
+tabk(65)=319023.301000+(33586.209144i);    // Vec_kaLpi=1.028256
+tabk(66)=337281.402280+(18819.811079i);    // Vec_kaLpi=1.077217
+tabk(67)=362850.680510+(14984.679544i);    // Vec_kaLpi=1.128510
+tabk(68)=385548.366410+(14941.027048i);    // Vec_kaLpi=1.182245
+tabk(69)=407468.198220+(15538.944561i);    // Vec_kaLpi=1.238538
+tabk(70)=429550.748060+(16369.406070i);    // Vec_kaLpi=1.297512
+tabk(71)=452248.413540+(17345.871626i);    // Vec_kaLpi=1.359294
+tabk(72)=475849.465830+(18472.266997i);    // Vec_kaLpi=1.424018
+tabk(73)=500595.381150+(19791.401389i);    // Vec_kaLpi=1.491824
+tabk(74)=526748.909050+(21390.191315i);    // Vec_kaLpi=1.562858
+tabk(75)=554691.654410+(23446.854654i);    // Vec_kaLpi=1.637275
+tabk(76)=585070.122340+(26230.531020i);    // Vec_kaLpi=1.715235
+tabk(77)=618429.486710+(32843.493057i);    // Vec_kaLpi=1.796907
+tabk(78)=650354.053330+(42807.937848i);    // Vec_kaLpi=1.882468
+tabk(79)=686426.255480+(59067.983143i);    // Vec_kaLpi=1.972103
+tabk(80)=699635.736910+(95496.941030i);    // Vec_kaLpi=2.066006
+tabk(81)=694733.159940+(77456.903554i);    // Vec_kaLpi=2.164381
+tabk(82)=742665.838180+(59447.993713i);    // Vec_kaLpi=2.267439
+tabk(83)=792932.438250+(86394.953019i);    // Vec_kaLpi=2.375405
+tabk(84)=794800.412800+(112626.937550i);    // Vec_kaLpi=2.488512
+tabk(85)=792166.101010+(98458.584457i);    // Vec_kaLpi=2.607004
+tabk(86)=822265.127420+(55106.986885i);    // Vec_kaLpi=2.731139
+tabk(87)=892469.310280+(39183.646143i);    // Vec_kaLpi=2.861184
+tabk(88)=940640.766590+(51791.137032i);    // Vec_kaLpi=2.997421
+tabk(89)=988773.158400+(40927.992497i);    // Vec_kaLpi=3.140146
+tabk(90)=1052510.775900+(49152.267875i);    // Vec_kaLpi=3.289666
+tabk(91)=1098459.664600+(61961.998675i);    // Vec_kaLpi=3.446306
+tabk(92)=1150043.310500+(68396.709084i);    // Vec_kaLpi=3.610405
+tabk(93)=1282360.172500+(-103646.404190i);    // Vec_kaLpi=3.782317
+tabk(94)=1247396.694100+(74433.372388i);    // Vec_kaLpi=3.962414
+tabk(95)=1304653.116900+(79031.633403i);    // Vec_kaLpi=4.151088
+tabk(96)=1374359.240500+(75771.159154i);    // Vec_kaLpi=4.348745
+tabk(97)=1434258.316900+(98330.483247i);    // Vec_kaLpi=4.555814
+tabk(98)=1517471.947200+(42055.825335i);    // Vec_kaLpi=4.772742
+tabk(99)=1535140.274900+(99729.366971i);    // Vec_kaLpi=5.000000
+int [int] plotindex(20); 
+plotindex=[0,5,10,15,20,25,30,35,40,45,50,55,60,65,70,75,80,85,90,95];
+int ii=0; 
+for (int jj=0;jj<20;jj++) {
+  ii=plotindex(jj); //change index to ii=plotindex(jj) ; 
+//klpi= klpimin+(pasklpi*ii); //linear spacing for x
+klpi = klpimin*10^((ii*(log10(klpimax)-log10(klpimin))/(nbpt-1)));//log spaced x
+
+ { ofstream f(logfilename,append);
+   cout << "klpi: " << klpi << endl;
+   f    << "klpi: " << klpi << endl;
+ };
+ 
+freq= (c0*klpi)/(2*Lx); 
+omega=2*pi*freq;
+complex q0=-1i*omega*phi0;
+
+k=tabk(ii); //initial guess (k will be updated in the code)
+ { ofstream f(logfilename,append);
+   cout << "k (initial)= " << real(k) << " + " << imag(k) << "i" << endl;
+   f    << "k (initial)= " << real(k) << " + " << imag(k) << "i" << endl;
+ };
+ 
+complex f0=-1i*k;  // forcing amplitude (-i k Phi0)
+complex err1=1.+1i; // dummy error value
+// int iteration = 1; not used for final run
+// while (abs(err1)> 0.02) { //not used for final run 
+
+//************************************************************//
+//************************************************************//
+// Solve the problem of density 
+//************************************************************//
+//************************************************************//
+//Define FE space for density
+ { ofstream f(logfilename,append);
+   cout << "***** Solving the problem of density [1/8]" << endl;
+   f    << "***** Solving the problem of density [1/8]" << endl;
+ };
+// Th: area mesh (fluid area) 
+fespace Whr(Th,[P2,P2,P1,P2,P2],periodic=[[1,y],[2,y]]);
+Whr<complex>  [vxr,vyr,pr,tr,br],[uxr,uyr,rr,sr,lr];// variables & test functions 
+//------------------------------------------------------------
+// Density problem
+// dx(f): df/dx 
+// int2d(Th)(f): 2d integral 
+// on(1,2,3,4,vyr=0): BC
+//------------------------------------------------------------
+// CONTINUITY EQN IN WEAK FORM (EQ. III) 
+problem nonlocalDensity([vxr,vyr,pr,tr,br],[uxr,uyr,rr,sr,lr]) =
+int2d(Th)(1i*omega*br*lr-dx(vxr)*lr-dy(vyr)*lr-1i*k*vxr*lr)+
+int2d(Th)(
+        - 1i*omega*rho0*vxr*uxr-1i*omega*rho0*vyr*uyr
+        - pr*(dx(uxr)+dy(uyr))
+        + 1i*k*pr*uxr
+        + (zeta+1./3*eta)*((dx(vxr)+dy(vyr))*(dx(uxr)+dy(uyr)))
+        - 1i*(zeta+1./3*eta)*k*uxr*(dx(vxr)+dy(vyr))
+        + 1i*(zeta+1./3*eta)*k*vxr*(dx(uxr)+dy(uyr))
+        + eta*(dx(vxr)*dx(uxr)+dy(vxr)*dy(uxr)+dx(vyr)*dx(uyr)+dy(vyr)*dy(uyr))
+        + 2*1i*eta*k*(vxr*dx(uxr)+vyr*dx(uyr))
+        + eta*(k^2)*(vxr*uxr+vyr*uyr)
+        + (zeta+1./3.*eta)*(k^2)*vxr*uxr
+        )
+      - int2d(Th)(f0*uxr)
+   + int2d(Th)(
+        - 1i*omega*rho0*cp*tr*sr
+        + 1i*omega*beta0*T0*pr*sr
+        + kappa*(dx(tr)*dx(sr)+dy(tr)*dy(sr))
+        + 2*1i*kappa*k*tr*dx(sr)
+        + (k^2)*kappa*tr*sr
+        )
+   + int2d(Th)(gamma*chi0*pr*rr-br*rr-beta0*tr*rr)
++on(1,2,3,4,vyr=0)
++on(5,vxr=0,vyr=0,tr=0);
+//------------------------------------------------------------
+nonlocalDensity;	//solve: get vx,vy,pr,tr,vr at every meshpoint, corresponding to omega, k 
+
+mesh Thjr=Th; // Creation of the finer mesh Thj          
+ real errorr=0.005;
+ real errorc=0.005;
+ // real errorr=0.002;
+ // real errorc=0.002;
+ // // rather than doing adaptmesh, load a fine mesh. 
+Thjr=adaptmesh(Thjr,
+ [real(vxr),real(vyr),imag(vxr),imag(vyr)],[real(tr),imag(tr)],[real(br),imag(br)]
+ ,err=errorr,nbvx=1000000,periodic=[[1,y],[2,y]]);
+if(svmesh==true){
+ savemeshname = "Thjr_"+ii+"_"+filebase+ ".msh";
+ savemesh(Thjr,savemeshname);
+ };
+if(plmesh==true){
+  plotmeshname = "Thjr_"+ii+"_"+filebase+".eps";
+  plot(Thjr, wait=false, ps=plotmeshname);
+ }
+
+// Solve the density system on the finer mesh Thj
+fespace Whjr(Thjr,[P2,P2,P1,P2,P2],periodic=[[1,y],[2,y]]);
+Whjr<complex>  [vxjr,vyjr,pjr,tjr,bjr],[uxjr,uyjr,rjr,sjr,ljr];
+
+{ ofstream f(logfilename,append);
+  cout << "***** Solving the problem of density [2/8]" << endl;
+  f    << "***** Solving the problem of density [2/8]" << endl;
+};
+problem nonlocaljDensity([vxjr,vyjr,pjr,tjr,bjr],[uxjr,uyjr,rjr,sjr,ljr]) =
+int2d(Thjr)(1i*omega*bjr*ljr-dx(vxjr)*ljr-dy(vyjr)*ljr-1i*k*vxjr*ljr)+
+int2d(Thjr)(
+        - 1i*omega*rho0*vxjr*uxjr-1i*omega*rho0*vyjr*uyjr
+        - pjr*(dx(uxjr)+dy(uyjr))
+        + 1i*k*pjr*uxjr
+        + (zeta+1./3.*eta)*((dx(vxjr)+dy(vyjr))*(dx(uxjr)+dy(uyjr)))
+        - 1i*(zeta+1./3.*eta)*k*uxjr*(dx(vxjr)+dy(vyjr))
+        + 1i*(zeta+1./3.*eta)*k*vxjr*(dx(uxjr)+dy(uyjr))
+        + eta*(dx(vxjr)*dx(uxjr)+dy(vxjr)*dy(uxjr)+dx(vyjr)*dx(uyjr)+dy(vyjr)*dy(uyjr))
+        + 2*1i*eta*k*(vxjr*dx(uxjr)+vyjr*dx(uyjr))
+        + eta*(k^2)*(vxjr*uxjr+vyjr*uyjr)
+        + (zeta+1./3.*eta)*(k^2)*vxjr*uxjr
+        )
+      - int2d(Thjr)(f0*uxjr)
+   + int2d(Thjr)(
+        - 1i*omega*rho0*cp*tjr*sjr
+        + 1i*omega*beta0*T0*pjr*sjr
+        + kappa*(dx(tjr)*dx(sjr)+dy(tjr)*dy(sjr))
+        + 2*1i*kappa*k*tjr*dx(sjr)
+        + (k^2)*kappa*tjr*sjr
+        )
+   + int2d(Thjr)(gamma*chi0*pjr*rjr-bjr*rjr-beta0*tjr*rjr)
++on(1,2,3,4,vyjr=0) // ? I don't want vyjr=0 to be here. I don't want Freefem to assume Neumann BC either. 
++on(5,vxjr=0,vyjr=0,tjr=0);
+
+nonlocaljDensity;
+
+real phir=int2d(Thjr)(1.)/(Vtot); //porosity from discretized area 
+real Vfr=int2d(Thjr)(1.);
+complex Vxr=1./Vfr*int2d(Thjr)(vxjr); // averaged velocity, V   
+complex Hr=int2d(Thjr)(pjr*vxjr)/int2d(Thjr)(vxjr);
+rho=(f0-1i*k*Hr)/(-1i*omega*Vxr); //fluid rho. 
+
+
+//************************************************************//
+//************************************************************//
+// PLOT FOR RHO
+//************************************************************//
+//************************************************************//
+// vector vxjr,vyjr , scalar pjr,tjr,bjr 
+ if(pl==true){
+   real[int] colorhsv=[ 
+                       5./6., 1 , 1,
+                       4./6., 1 , 1,
+                       3./6., 1 , 1,
+                       2./6., 1 , 1,
+                       1./6., 1 , 1,
+                       0./6., 1 , 1,
+                       0./6., 1 , 0.5 ];
+
+   // fespace WhjrPlot is used to plot velocity and related values
+   fespace WhjrPlot(Thjr,P2); 
+   // geometry, velocity, temperature, pressure 
+   WhjrPlot vxjrRe = real(vxjr); WhjrPlot vxjrIm = imag(vxjr); 
+   WhjrPlot vyjrRe = real(vyjr); WhjrPlot vyjrIm = imag(vyjr); 
+   WhjrPlot vxjrMag = abs(vxjr); WhjrPlot vyjrMag = abs(vyjr); 
+   WhjrPlot vjrMag = sqrt(abs(vxjr)*abs(vxjr)+abs(vyjr)*abs(vyjr)); 
+ 
+   WhjrPlot tjrRe= real(tjr); WhjrPlot tjrIm= imag(tjr); WhjrPlot tjrMag= abs(pjr); 
+   WhjrPlot pjrRe= real(pjr); WhjrPlot pjrIm= imag(pjr); WhjrPlot pjrMag= abs(pjr); 
+
+   if(ii==1){
+     WhjrPlot geom=1; //save geometry for ii=1; 
+     saveplotname="geometry_"+filebase+".eps";
+     plot(geom,wait=true, fill=true, bw=true, boundary=false, ps=saveplotname);
+   }
+   saveplotname = "Re_vxjr"+ii+"_"+filebase+".eps";
+   plot(vxjrRe,fill=1,wait=0,hsv=colorhsv,ps=saveplotname);// velocity
+   saveplotname = "Im_vxjr"+ii+"_"+filebase+".eps";
+   plot(vxjrIm,fill=1,wait=0,hsv=colorhsv,ps=saveplotname);// velocity
+   saveplotname = "Re_vyjr"+ii+"_"+filebase+".eps";
+   plot(vyjrRe,fill=1,wait=0,hsv=colorhsv,ps=saveplotname);// velocity
+   saveplotname = "Im_vyjr"+ii+"_"+filebase+".eps";
+   plot(vyjrIm,fill=1,wait=0,hsv=colorhsv,ps=saveplotname);// velocity
+   saveplotname = "Mag_vxjr"+ii+"_"+filebase+".eps";
+   plot(vxjrMag,fill=1,wait=0,hsv=colorhsv,ps=saveplotname);// velocity
+   saveplotname = "Mag_vyjr"+ii+"_"+filebase+".eps";
+   plot(vyjrMag,fill=1,wait=0,hsv=colorhsv,ps=saveplotname);// velocity
+   saveplotname = "Mag_vjr"+ii+"_"+filebase+".eps";
+   plot(vjrMag,fill=1,wait=0,hsv=colorhsv,ps=saveplotname);// velocity
+   saveplotname = "Mag_Tjr"+ii+"_"+filebase+".eps";
+   plot(tjrMag,fill=1,wait=0,hsv=colorhsv,ps=saveplotname);// temperature
+   saveplotname = "Mag_Pjr"+ii+"_"+filebase+".eps";
+   plot(pjrMag,fill=1,wait=0,hsv=colorhsv,ps=saveplotname);// pressure
+   
+   /* fespace Dh(Thjr,P1dc);  */
+   /* Dh<complex> divh=dx(vxjr)+dy(vyjr);  */
+   /* Dh magdiv = abs(divh);  */
+   /* plot(magdiv,wait=true, fill=true, hsv=colorhsv, boundary=false, ps="magdiv.eps");  */
+   // saveplotname = "Re_uxr"+ii+"_"+filebase+".eps";
+   // plot(real(uxr),fill=1,wait=0,hsv=colorhsv,ps=saveplotname);// test function 
+ }//end if plot; 
+
+//************************************************************//
+//************************************************************//
+// Solve the problem of compressibility
+//************************************************************//
+//************************************************************//
+//Difine FE space for compressibility
+ { ofstream f(logfilename,append);
+   cout << "***** Solving the problem of compressibility [3/8]" << endl;
+   f    << "***** Solving the problem of compressibility [3/8]" << endl;
+ };
+fespace Whc(Th,[P2,P2,P1,P2,P2],periodic=[[1,y],[2,y]]);
+Whc<complex>  [vxc,vyc,pc,tc,bc],[uxc,uyc,rc,sc,lc];
+
+// Compressibility problem
+problem nonlocalCompressibility([vxc,vyc,pc,tc,bc],[uxc,uyc,rc,sc,lc]) =
+int2d(Th)(1i*omega*bc*lc-dx(vxc)*lc-dy(vyc)*lc-1i*k*vxc*lc)+
+int2d(Th)(
+        - 1i*omega*rho0*vxc*uxc-1i*omega*rho0*vyc*uyc
+        - pc*(dx(uxc)+dy(uyc))
+        + 1i*k*pc*uxc
+        + (zeta+1./3*eta)*((dx(vxc)+dy(vyc))*(dx(uxc)+dy(uyc)))
+        - 1i*(zeta+1./3*eta)*k*uxc*(dx(vxc)+dy(vyc))
+        + 1i*(zeta+1./3*eta)*k*vxc*(dx(uxc)+dy(uyc))
+        + eta*(dx(vxc)*dx(uxc)+dy(vxc)*dy(uxc)+dx(vyc)*dx(uyc)+dy(vyc)*dy(uyc))
+        + 2*1i*eta*k*(vxc*dx(uxc)+vyc*dx(uyc))
+        )
+   + int2d(Th)(
+        - 1i*omega*rho0*cp*tc*sc
+        + 1i*omega*beta0*T0*pc*sc
+        + kappa*(dx(tc)*dx(sc)+dy(tc)*dy(sc))
+        + 2*1i*kappa*k*tc*dx(sc)
+        )
+   - int2d(Th)(beta0*T0*q0*sc) 
+   + int2d(Th)(gamma*chi0*pc*rc-bc*rc-beta0*tc*rc)
++on(1,2,3,4,vyc=0)
++on(5,vxc=0,vyc=0,tc=0);
+nonlocalCompressibility;             
+    
+mesh Thjc=Th;
+
+// Creatioin of finer mesh 
+Thjc=adaptmesh(Thjc,
+ [real(vxc),real(vyc),imag(vxc),imag(vyc)],[real(tc),imag(tc)],[real(bc),imag(bc)]
+ ,err=errorc,nbvx=1000000,periodic=[[1,y],[2,y]]);
+if(svmesh==true){
+ savemeshname = "Thjc_"+ii+"_"+filebase+ ".msh";
+ savemesh(Thjc,savemeshname);
+ };
+if(plmesh==true){
+  plotmeshname = "Thjc_"+ii+"_"+filebase+".eps";
+  plot(Thjc, wait=false, ps=plotmeshname);
+ }
+
+// Solve the compressibility system on the finer mesh Thj
+fespace Whjc(Thjc,[P2,P2,P1,P2,P2],periodic=[[1,y],[2,y]]);
+Whjc<complex>  [vxjc,vyjc,pjc,tjc,bjc],[uxjc,uyjc,rjc,sjc,ljc];
+
+ { ofstream f(logfilename,append);
+   cout << "***** Solving the problem of compressibility [4/8]" << endl;
+   f    << "***** Solving the problem of compressibility [4/8]" << endl;
+ };
+problem nonlocaljCompressibility([vxjc,vyjc,pjc,tjc,bjc],[uxjc,uyjc,rjc,sjc,ljc]) =
+int2d(Thjc)(1i*omega*bjc*ljc-dx(vxjc)*ljc-dy(vyjc)*ljc-1i*k*vxjc*ljc)+
+int2d(Thjc)(
+        - 1i*omega*rho0*vxjc*uxjc-1i*omega*rho0*vyjc*uyjc
+        - pjc*(dx(uxjc)+dy(uyjc))
+        + 1i*k*pjc*uxjc
+        + (zeta+1./3*eta)*((dx(vxjc)+dy(vyjc))*(dx(uxjc)+dy(uyjc)))
+        - 1i*(zeta+1./3*eta)*k*uxjc*(dx(vxjc)+dy(vyjc))
+        + 1i*(zeta+1./3*eta)*k*vxjc*(dx(uxjc)+dy(uyjc))
+        + eta*(dx(vxjc)*dx(uxjc)+dy(vxjc)*dy(uxjc)+dx(vyjc)*dx(uyjc)+dy(vyjc)*dy(uyjc))
+        + 2*1i*eta*k*(vxjc*dx(uxjc)+vyjc*dx(uyjc))
+        + eta*(k^2)*(vxjc*uxjc+vyjc*uyjc)
+        + (zeta+1./3.*eta)*(k^2)*vxjc*uxjc
+        )
+   + int2d(Thjc)(
+        - 1i*omega*rho0*cp*tjc*sjc
+        + 1i*omega*beta0*T0*pjc*sjc
+        + kappa*(dx(tjc)*dx(sjc)+dy(tjc)*dy(sjc))
+        + 2*1i*kappa*k*tjc*dx(sjc)
+        + (k^2)*kappa*tjc*sjc
+        )
+	- int2d(Thjc)(beta0*T0*q0*sjc)
+   + int2d(Thjc)(gamma*chi0*pjc*rjc-bjc*rjc-beta0*tjc*rjc)
++on(1,2,3,4,vyjc=0)
++on(5,vxjc=0,vyjc=0,tjc=0);
+nonlocaljCompressibility;
+
+real phic=int2d(Thjc)(1.)/(Vtot);
+real Vfc=int2d(Thjc)(1.);
+complex Vxc=1./Vfc*int2d(Thjc)(vxjc);
+complex B=1./Vfc*int2d(Thjc)(bjc);
+complex Hc=int2d(Thjc)(pjc*vxjc)/int2d(Thjc)(vxjc);
+
+chi=chi0*(1./chi0*B+gamma*phi0)/(phi0+Hc);
+
+
+//************************************************************//
+//************************************************************//
+// PLOT FOR CHI
+//************************************************************//
+//************************************************************//
+// vector vxjc,vyjc, scalar pjc,tjc,bjc
+ if(pl){
+   real[int] colorhsv=[ 
+                       5./6., 1 , 1,
+                       4./6., 1 , 1,
+                       3./6., 1 , 1,
+                       2./6., 1 , 1,
+                       1./6., 1 , 1,
+                       0./6., 1 , 1,
+                       0./6., 1 , 0.5 ];
+
+   // fespace WhjcPlot is used to plot velocity and related values
+   fespace WhjcPlot(Thjc,P2); 
+   // geometry, velocity, temperature, pressure 
+   WhjcPlot vxjcRe = real(vxjc); WhjcPlot vxjcIm = imag(vxjc); 
+   WhjcPlot vyjcRe = real(vyjc); WhjcPlot vyjcIm = imag(vyjc); 
+   WhjcPlot vxjcMag = abs(vxjc); WhjcPlot vyjcMag = abs(vyjc); 
+   WhjcPlot vjcMag = sqrt(abs(vxjc)*abs(vxjc)+abs(vyjc)*abs(vyjc)); 
+ 
+   WhjcPlot tjcRe= real(tjc); WhjcPlot tjcIm= imag(tjc); WhjcPlot tjcMag= abs(pjc); 
+   WhjcPlot pjcRe= real(pjc); WhjcPlot pjcIm= imag(pjc); WhjcPlot pjcMag= abs(pjc); 
+
+   if(ii==1){
+     WhjcPlot geom=1; //save geometry for ii=1; 
+     saveplotname="geometry_"+filebase+".eps";
+     plot(geom,wait=true, fill=true, bw=true, boundary=false, ps=saveplotname);
+   }
+   saveplotname = "Re_vxjc"+ii+"_"+filebase+".eps";
+   plot(vxjcRe,fill=1,wait=0,hsv=colorhsv,ps=saveplotname);// velocity
+   saveplotname = "Im_vxjc"+ii+"_"+filebase+".eps";
+   plot(vxjcIm,fill=1,wait=0,hsv=colorhsv,ps=saveplotname);// velocity
+   saveplotname = "Re_vyjc"+ii+"_"+filebase+".eps";
+   plot(vyjcRe,fill=1,wait=0,hsv=colorhsv,ps=saveplotname);// velocity
+   saveplotname = "Im_vyjc"+ii+"_"+filebase+".eps";
+   plot(vyjcIm,fill=1,wait=0,hsv=colorhsv,ps=saveplotname);// velocity
+   saveplotname = "Mag_vxjc"+ii+"_"+filebase+".eps";
+   plot(vxjcMag,fill=1,wait=0,hsv=colorhsv,ps=saveplotname);// velocity
+   saveplotname = "Mag_vyjc"+ii+"_"+filebase+".eps";
+   plot(vyjcMag,fill=1,wait=0,hsv=colorhsv,ps=saveplotname);// velocity
+   saveplotname = "Mag_vjc"+ii+"_"+filebase+".eps";
+   plot(vjcMag,fill=1,wait=0,hsv=colorhsv,ps=saveplotname);// velocity
+   saveplotname = "Mag_Tjc"+ii+"_"+filebase+".eps";
+   plot(tjcMag,fill=1,wait=0,hsv=colorhsv,ps=saveplotname);// temperature
+   saveplotname = "Mag_Pjc"+ii+"_"+filebase+".eps";
+   plot(pjcMag,fill=1,wait=0,hsv=colorhsv,ps=saveplotname);// pressure
+   
+   /* fespace Dh(Thjc,P1dc);  */
+   /* Dh<complex> divh=dx(vxjc)+dy(vyjc);  */
+   /* Dh magdiv = abs(divh);  */
+   /* plot(magdiv,wait=true, fill=true, hsv=colorhsv, boundary=false, ps="magdiv.eps");  */
+   // saveplotname = "Re_uxr"+ii+"_"+filebase+".eps";
+   // plot(real(uxr),fill=1,wait=0,hsv=colorhsv,ps=saveplotname);// test function 
+ }//end if plot; 
+
+//************************************************************//
+//************************************************************//
+// Start  computing the derivatives
+//************************************************************//
+//************************************************************//
+ { ofstream f(logfilename,append);
+   cout << "***** Start  computing the derivatives - density [5/8]" << endl;
+   f    << "***** Start  computing the derivatives - density [5/8]" << endl;
+ };
+complex dk= 0.001*k;
+complex k1=k+dk;
+complex f01=-1i*k1;
+
+// Compute the density in k+dk, rho1
+fespace Whr1(Th,[P2,P2,P1,P2,P2],periodic=[[1,y],[2,y]]);
+Whr1<complex>  [vxr1,vyr1,pr1,tr1,br1],[uxr1,uyr1,rr1,sr1,lr1];
+
+problem nonlocalDensity1([vxr1,vyr1,pr1,tr1,br1],[uxr1,uyr1,rr1,sr1,lr1]) =
+int2d(Th)(1i*omega*br1*lr1-dx(vxr1)*lr1-dy(vyr1)*lr1-1i*k1*vxr1*lr1)+
+int2d(Th)(
+        - 1i*omega*rho0*vxr1*uxr1-1i*omega*rho0*vyr1*uyr1
+        - pr1*(dx(uxr1)+dy(uyr1))
+        + 1i*k1*pr1*uxr1
+        + (zeta+1./3*eta)*((dx(vxr1)+dy(vyr1))*(dx(uxr1)+dy(uyr1)))
+        - 1i*(zeta+1./3*eta)*k1*uxr1*(dx(vxr1)+dy(vyr1))
+        + 1i*(zeta+1./3*eta)*k1*vxr1*(dx(uxr1)+dy(uyr1))
+        + eta*(dx(vxr1)*dx(uxr1)+dy(vxr1)*dy(uxr1)+dx(vyr1)*dx(uyr1)+dy(vyr1)*dy(uyr1))
+        + 2*1i*eta*k1*(vxr1*dx(uxr1)+vyr1*dx(uyr1))
+        + eta*(k^2)*(vxr1*uxr1+vyr1*uyr1)
+        + (zeta+1./3.*eta)*(k^2)*vxr1*uxr1
+        )
+      - int2d(Th)(f01*uxr1)
+   + int2d(Th)(
+        - 1i*omega*rho0*cp*tr1*sr1
+        + 1i*omega*beta0*T0*pr1*sr1
+        + kappa*(dx(tr1)*dx(sr1)+dy(tr1)*dy(sr1))
+        + 2*1i*kappa*k1*tr1*dx(sr1)
+        + (k^2)*kappa*tr1*sr1
+        )
+   + int2d(Th)(gamma*chi0*pr1*rr1-br1*rr1-beta0*tr1*rr1)
++on(1,2,3,4,vyr1=0)
++on(5,vxr1=0,vyr1=0,tr1=0);
+nonlocalDensity1;
+
+mesh Thjr1=Th;
+//real error=0.002;
+Thjr1=adaptmesh(Thjr1,
+ [real(vxr1),real(vyr1),imag(vxr1),imag(vyr1)],[real(tr1),imag(tr1)],[real(br1),imag(br1)]
+ ,err=errorc,nbvx=1000000,periodic=[[1,y],[2,y]]);
+if(svmesh==true){
+ savemeshname = "Thjr1_"+ii+"_"+filebase+ ".msh";
+ savemesh(Thjr1,savemeshname);
+ };
+if(plmesh==true){
+  plotmeshname = "Thjr1_"+ii+"_"+filebase+".eps";
+  plot(Thjr1, wait=false, ps=plotmeshname);
+ }
+
+fespace Whjr1(Thjr1,[P2,P2,P1,P2,P2],periodic=[[1,y],[2,y]]);
+Whjr1<complex>  [vxjr1,vyjr1,pjr1,tjr1,bjr1],[uxjr1,uyjr1,rjr1,sjr1,ljr1];
+
+ { ofstream f(logfilename,append);
+   cout << "***** Start  computing the derivatives - density [6/8]" << endl;
+   f    << "***** Start  computing the derivatives - density [6/8]" << endl;
+ };
+problem nonlocalj1Density([vxjr1,vyjr1,pjr1,tjr1,bjr1],[uxjr1,uyjr1,rjr1,sjr1,ljr1]) =
+int2d(Thjr1)(1i*omega*bjr1*ljr1-dx(vxjr1)*ljr1-dy(vyjr1)*ljr1-1i*k1*vxjr1*ljr1)+
+int2d(Thjr1)(
+        - 1i*omega*rho0*vxjr1*uxjr1-1i*omega*rho0*vyjr1*uyjr1
+        - pjr1*(dx(uxjr1)+dy(uyjr1))
+        + 1i*k1*pjr1*uxjr1
+        + (zeta+1./3*eta)*((dx(vxjr1)+dy(vyjr1))*(dx(uxjr1)+dy(uyjr1)))
+        - 1i*(zeta+1./3*eta)*k1*uxjr1*(dx(vxjr1)+dy(vyjr1))
+        + 1i*(zeta+1./3*eta)*k1*vxjr1*(dx(uxjr1)+dy(uyjr1))
+        + eta*(dx(vxjr1)*dx(uxjr1)+dy(vxjr1)*dy(uxjr1)+dx(vyjr1)*dx(uyjr1)+dy(vyjr1)*dy(uyjr1))
+        + 2*1i*eta*k1*(vxjr1*dx(uxjr1)+vyjr1*dx(uyjr1))
+        + eta*(k^2)*(vxjr1*uxjr1+vyjr1*uyjr1)
+        + (zeta+1./3.*eta)*(k^2)*vxjr1*uxjr1
+        )
+      - int2d(Thjr1)(f01*uxjr1)
+   + int2d(Thjr1)(
+        - 1i*omega*rho0*cp*tjr1*sjr1
+        + 1i*omega*beta0*T0*pjr1*sjr1
+        + kappa*(dx(tjr1)*dx(sjr1)+dy(tjr1)*dy(sjr1))
+        + 2*1i*kappa*k1*tjr1*dx(sjr1)
+        + (k^2)*kappa*tjr1*sjr1
+        )
+   + int2d(Thjr1)(gamma*chi0*pjr1*rjr1-bjr1*rjr1-beta0*tjr1*rjr1)
++on(1,2,3,4,vyjr1=0)
++on(5,vxjr1=0,vyjr1=0,tjr1=0);
+nonlocalj1Density;
+
+
+real phir1=int2d(Thjr1)(1.)/(Vtot);
+real Vfr1=int2d(Thjr1)(1.);
+complex Vxr1=1./Vfr1*int2d(Thjr1)(vxjr1);
+complex Hr1=int2d(Thjr1)(pjr1*vxjr1)/int2d(Thjr1)(vxjr1);
+complex rho1=(f01-1i*k1*Hr1)/(-1i*omega*Vxr1);
+
+	
+
+// Compute the compressibility in k+dk, chi1
+fespace Whc1(Th,[P2,P2,P1,P2,P2],periodic=[[1,y],[2,y]]);
+Whc1<complex>  [vxc1,vyc1,pc1,tc1,bc1],[uxc1,uyc1,rc1,sc1,lc1];
+
+ { ofstream f(logfilename,append);
+   cout << "***** Start  computing the derivatives -  compressibility [7/8]" << endl;
+   f    << "***** Start  computing the derivatives -  compressibility [7/8]" << endl; 
+ };
+
+problem nonlocalCompressibility1([vxc1,vyc1,pc1,tc1,bc1],[uxc1,uyc1,rc1,sc1,lc1]) =
+int2d(Th)(1i*omega*bc1*lc1-dx(vxc1)*lc1-dy(vyc1)*lc1-1i*k1*vxc1*lc1)+
+int2d(Th)(
+        - 1i*omega*rho0*vxc1*uxc1-1i*omega*rho0*vyc1*uyc1
+        - pc1*(dx(uxc1)+dy(uyc1))
+        + 1i*k1*pc1*uxc1
+        + (zeta+1./3*eta)*((dx(vxc1)+dy(vyc1))*(dx(uxc1)+dy(uyc1)))
+        - 1i*(zeta+1./3*eta)*k1*uxc1*(dx(vxc1)+dy(vyc1))
+        + 1i*(zeta+1./3*eta)*k1*vxc1*(dx(uxc1)+dy(uyc1))
+        + eta*(dx(vxc1)*dx(uxc1)+dy(vxc1)*dy(uxc1)+dx(vyc1)*dx(uyc1)+dy(vyc1)*dy(uyc1))
+        + 2*1i*eta*k1*(vxc1*dx(uxc1)+vyc1*dx(uyc1))
+        )
+   + int2d(Th)(
+        - 1i*omega*rho0*cp*tc1*sc1
+        + 1i*omega*beta0*T0*pc1*sc1
+        + kappa*(dx(tc1)*dx(sc1)+dy(tc1)*dy(sc1))
+        + 2*1i*kappa*k1*tc1*dx(sc1)
+        )
+   - int2d(Th)(beta0*T0*q0*sc1) 
+   + int2d(Th)(gamma*chi0*pc1*rc1-bc1*rc1-beta0*tc1*rc1)
++on(1,2,3,4,vyc1=0)
++on(5,vxc1=0,vyc1=0,tc1=0);
+nonlocalCompressibility1;             
+    
+mesh Thjc1=Th;
+// error=0.002;
+
+Thjc1=adaptmesh(Thjc1,
+ [real(vxc1),real(vyc1),imag(vxc1),imag(vyc1)],[real(tc1),imag(tc1)],[real(bc1),imag(bc1)]
+ ,err=errorc,nbvx=1000000,periodic=[[1,y],[2,y]]);
+if(svmesh==true){
+ savemeshname = "Thjc1_"+ii+"_"+filebase+ ".msh";
+ savemesh(Thjc1,savemeshname);
+ };
+if(plmesh==true){
+  plotmeshname = "Thjc1_"+ii+"_"+filebase+".eps";
+  plot(Thjc1, wait=false, ps=plotmeshname);
+ }
+fespace Whjc1(Thjc1,[P2,P2,P1,P2,P2],periodic=[[1,y],[2,y]]);
+Whjc1<complex>  [vxjc1,vyjc1,pjc1,tjc1,bjc1],[uxjc1,uyjc1,rjc1,sjc1,ljc1];
+
+
+ { ofstream f(logfilename,append);
+   cout << "***** Start  computing the derivatives -  compressibility [8/8]" << endl;
+   f    << "***** Start  computing the derivatives -  compressibility [8/8]" << endl; 
+ };
+problem nonlocalj1Compressibility([vxjc1,vyjc1,pjc1,tjc1,bjc1],[uxjc1,uyjc1,rjc1,sjc1,ljc1]) =
+int2d(Thjc1)(1i*omega*bjc1*ljc1-dx(vxjc1)*ljc1-dy(vyjc1)*ljc1-1i*k1*vxjc1*ljc1)+
+int2d(Thjc1)(
+        - 1i*omega*rho0*vxjc1*uxjc1-1i*omega*rho0*vyjc1*uyjc1
+        - pjc1*(dx(uxjc1)+dy(uyjc1))
+        + 1i*k1*pjc1*uxjc1
+        + (zeta+1./3*eta)*((dx(vxjc1)+dy(vyjc1))*(dx(uxjc1)+dy(uyjc1)))
+        - 1i*(zeta+1./3*eta)*k1*uxjc1*(dx(vxjc1)+dy(vyjc1))
+        + 1i*(zeta+1./3*eta)*k1*vxjc1*(dx(uxjc1)+dy(uyjc1))
+        + eta*(dx(vxjc1)*dx(uxjc1)+dy(vxjc1)*dy(uxjc1)+dx(vyjc1)*dx(uyjc1)+dy(vyjc1)*dy(uyjc1))
+        + 2*1i*eta*k1*(vxjc1*dx(uxjc1)+vyjc1*dx(uyjc1))
+        + eta*(k^2)*(vxjc1*uxjc1+vyjc1*uyjc1)
+        + (zeta+1./3.*eta)*(k^2)*vxjc1*uxjc1
+        )
+   + int2d(Thjc1)(
+        - 1i*omega*rho0*cp*tjc1*sjc1
+        + 1i*omega*beta0*T0*pjc1*sjc1
+        + kappa*(dx(tjc1)*dx(sjc1)+dy(tjc1)*dy(sjc1))
+        + 2*1i*kappa*k1*tjc1*dx(sjc1)
+        + (k^2)*kappa*tjc1*sjc1
+        )
+	- int2d(Thjc1)(beta0*T0*q0*sjc1)
+   + int2d(Thjc1)(gamma*chi0*pjc1*rjc1-bjc1*rjc1-beta0*tjc1*rjc1)
++on(1,2,3,4,vyjc1=0)
++on(5,vxjc1=0,vyjc1=0,tjc1=0);
+nonlocalj1Compressibility;
+
+real phic1=int2d(Thjc1)(1.)/(Vtot);
+real Vfc1=int2d(Thjc1)(1.);
+complex Vxc1=1./Vfc1*int2d(Thjc1)(vxjc1);
+complex B1=1./Vfc1*int2d(Thjc1)(bjc1);
+complex Hc1=int2d(Thjc1)(pjc1*vxjc1)/int2d(Thjc1)(vxjc1);
+complex chi1=chi0*(1./chi0*B1+gamma*phi0)/(phi0+Hc1);
+
+
+
+//************************************************************//
+//************************************************************//
+// End  computing the derivatives, Print Results 
+//************************************************************//
+//************************************************************//
+complex Fw2 = omega^2-k^2./rho/chi;
+complex F1w2= omega^2-k1^2./rho1/chi1;
+complex Frhochiw2 = rho*chi*omega^2-k^2;
+complex F1rhochiw2= rho1*chi1*omega^2-k1^2; 
+
+complex F = Frhochiw2;
+complex F1= F1rhochiw2; 
+complex Fp=(F1-F)/dk; 
+complex kout=k-F/Fp; //Newton Raphson 
+err1=(kout-k)/k;
+k=kout;
+
+//--------------------------------------------------------------------//
+// Print iteration number // Print the value of k // Print Error in Newton-Raphson
+ { ofstream f(logfilename,append);
+   cout << "*****************************************************************"<< endl; 
+   cout << "Iteration number: " << "final run" << endl;
+   cout << "k=" << k << endl;
+   cout << "Erreur : " << abs(err1) << endl;
+   cout << "*****************************************************************"<< endl; 
+
+   f << "*****************************************************************"<< endl; 
+   f << "Iteration number: " << "final run" << endl; 
+   f << "k=" << k << endl; 
+   f << "Erreur : " << abs(err1) << endl; 
+   f << "*****************************************************************"<< endl; 
+ };
+
+// iteration=iteration+1; //not used for final run
+//  } //end while //not used for final run 
+
+}//end for 
+
+//--- Record Time 
+cpu=clock()-cpu;
+{ ofstream f(logfilename,append);
+  cout << "cpu: " << cpu << endl;
+  f    << "cpu: " << cpu << endl;
+};

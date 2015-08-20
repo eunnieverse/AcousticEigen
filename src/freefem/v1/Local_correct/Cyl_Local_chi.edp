@@ -1,0 +1,116 @@
+// Compute dynamic compressibility using the classical local theory 
+//  dimensionless
+// geometry: 2D network of rigid cylinders  
+//OK
+
+load "UMFPACK64";
+load "medit";
+real cpu=clock();
+
+//Inputs
+real L=1e-5; // length of cell (m)
+real phi0=0.9; // porosity
+real R=sqrt((1.-phi0)/pi)*L;  // radius of the cylinders
+ 
+real T0=293.;
+real c0=331.+0.6*(T0-273.);
+real rho0=1.2;
+real K0=rho0*c0^2;
+real nuh=2.15e-5;
+real nuv=1.5e-5;
+real Pr=0.697674418604651;
+real cp=1005.;
+real Beta0=1./T0;
+real gam=1.4;
+real eta=nuv*rho0, kappa=nuh*rho0*cp, gamma=1.4, chi0=1./K0; // air properties
+
+int n=10, nedg=20; // mesh properties
+
+real x1=0., y1=0.;
+real xMin=-L/2., xMax=L/2., yMin=-L/2., yMax=L/2.;
+real Lx=xMax-xMin, Ly=yMax-yMin;
+real Vtot=Lx*Ly;
+// build geometry
+border a1(t=yMax,yMin){x=xMin;y=t;label=1;};// input
+border a2(t=xMin,xMax){x=t;y=yMin;label=3;};
+border a3(t=yMin,yMax){x=xMax;y=t;label=2;};// output
+border a4(t=xMax,xMin){x=t;y=yMax;label=4;};
+border c1(t=0,2*pi){ x=x1+R*cos(t); y=y1+R*sin(t);label=5;};
+
+// initial mesh
+mesh Th= buildmesh( a1(n)+a2(n)+a3(n)+a4(n)+c1(-1*nedg));
+
+// output file
+string fileout="chiLocal.txt";
+
+// periodic boundary conditions
+fespace Uh(Th,P2,periodic=[[1,y],[2,y]]);
+Uh<complex> t,s;
+
+int nbpt = 100;  // number of points
+real klpi,pasklpi,klpimin=0.05,klpimax=5;  // Normalized frequency: kL/pi= omega*L/c0/pi
+real freq;
+real omega;
+real Omegaprime;
+
+for (int ii=0; ii<nbpt ; ii++) {
+klpi = klpimin*10^((ii*(log10(klpimax)-log10(klpimin))/(nbpt-1.)));  // logarithmic step
+
+//pasklpi= (klpimax-klpimin)/(nbpt);
+//klpi=klpimin+(pasklpi*ii);   // linear step
+ 
+cout << "klpi: " << klpi << endl;
+freq= (c0*klpi)/(2.*Lx);  // frequency
+omega=2.*pi*freq; // angular frequency
+real Omegaprime=rho0*cp*omega/kappa; 
+
+problem heat([t],[s]) =
+int2d(Th)(t*s*1e-15
+    +1i*Omegaprime*t*s+
+      - (dx(t)*dx(s)+dy(t)*dy(s)))
++ int2d(Th)(1.*s)
++ on(5,t=0);
+heat;
+
+// adaptmesh
+mesh Thj=Th;
+real error=0.001;
+Thj=adaptmesh(Thj,
+ [real(t),imag(t)]
+ ,err=error,nbvx=1000000,periodic=[[1,y],[2,y]]);
+
+// Solve the problem on the finer mesh
+fespace Uhj(Thj,P2,periodic=[[1,y],[2,y]]);
+Uhj<complex> tj,sj;
+
+problem heatj([tj],[sj]) =
+int2d(Thj)(tj*sj*1e-15
+    +1i*Omegaprime*tj*sj+
+      - (dx(tj)*dx(sj)+dy(tj)*dy(sj)))
++ int2d(Thj)(1.*sj)
++ on(5,tj=0);
+heatj;
+
+real phi=int2d(Thj)(1.)/(Vtot); // porosity
+real Vf=int2d(Thj)(1.);  // volume of the fluid
+real lct=2.*Vf/int1d(Thj,5)(1.);
+complex T=1./Vf*int2d(Thj)(tj); // Average of temperature
+complex kp=T;                   
+complex alphap=-1./(1i*Omegaprime*T);
+
+//complex beta=gamma-(gamma-1)*1i*2*pi*freq*kp*rho0*cp/(kappa*phi);// not verified
+complex chi=chi0*(gamma+(gamma-1)*1i*Omegaprime*T);  // Effective local compressibility
+complex beta=chi/chi0;
+
+ofstream ff(fileout,append);
+	{   
+	int nold=ff.precision(10);
+
+   	ff.scientific << klpi << " "<< real(chi) << " " << imag(chi) << " " << real(alphap) << " "<< imag(alphap) << endl;
+   	}
+   
+}
+
+cpu=clock()-cpu;
+cout << "cpu: " << cpu << endl;
+//cout << "ndofs: " <<  ndofs << endl;
