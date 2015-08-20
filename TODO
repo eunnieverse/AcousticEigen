@@ -1,6 +1,9 @@
 TODO file 
-created on 2015.06.23
 
-mesh load *.msh without adaptmesh every time 
-plot results from finalstep.edp 
-plot effective lambda 
+fix malloc error in RootFinding folder, due to re-declarations of variables inside the for loop. 
+check convergence of data for the current mesh. Example for mesh study is provided in the freefem/ folder. 
+
+group reused integrands into functions ? Not that important now 
+
+
+evaluation of F' using F-F1/dk : is this the best way to obtain the slope how do you choose dk? 
