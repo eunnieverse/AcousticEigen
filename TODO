@@ -1,9 +1,21 @@
 TODO file 
 
-fix malloc error in RootFinding folder, due to re-declarations of variables inside the for loop. 
+MPI with MPICH 
+
+
+search for a file with  the expression:  #pragma omp parallel  
+ex. OPFT.cc
+
+< Some basic important parameters > 
+
+at the beginning, 
+reduction(+:PAbs, PScat) : specifies values that will be added for all threads. 
+
+#pragma omp critical {}  : no two threads should run at the same time.  
+
+Logging: commands to run a certain printf statement very occasionally, like 10 times in a loop that runs million times. 
+ex) Homer's LogPercent routine. 
+
+
+-------------------------------
 check convergence of data for the current mesh. Example for mesh study is provided in the freefem/ folder. 
-
-group reused integrands into functions ? Not that important now 
-
-
-evaluation of F' using F-F1/dk : is this the best way to obtain the slope how do you choose dk? 
